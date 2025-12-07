@@ -1,0 +1,130 @@
+# Default values for php-webapp chart
+
+# Image configuration for PHP application
+# Build example: docker build -t yourorg/php-webapp-example:latest examples/php-app/
+image:
+  registry: ""
+  repository: jthegunner/php-composer-npm-amd
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# Replica count
+replicaCount: 1
+
+# Service account
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# Pod annotations
+podAnnotations: {}
+
+# Pod security context
+podSecurityContext:
+  fsGroup: 1000
+
+# PHP-FPM container configuration
+phpFpm:
+  # Resource limits for PHP-FPM
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1024Mi
+    requests:
+      cpu: 200m
+      memory: 256Mi
+  
+  # Environment variables
+  env: []
+    # - name: APP_ENV
+    #   value: production
+  
+  # PHP-FPM configuration overrides (optional)
+  config: {}
+    # Mounted as ConfigMap if specified
+    # www.conf: |
+    #   [www]
+    #   pm = dynamic
+    #   pm.max_children = 50
+
+# Nginx sidecar configuration
+nginx:
+  enabled: true
+  image:
+    repository: nginx
+    tag: "1.25-alpine"
+    pullPolicy: IfNotPresent
+  
+  # Resource limits for Nginx
+  resources:
+    limits:
+      cpu: 500m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 64Mi
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 80  # Nginx port
+  annotations: {}
+
+# Ingress configuration
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+    # nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: php-app.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+    # - secretName: php-app-tls
+    #   hosts:
+    #     - php-app.local
+
+# Health check configuration
+livenessProbe:
+  enabled: true
+  path: /health.php
+  port: 80  # Nginx port
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  enabled: true
+  path: /health.php
+  port: 80  # Nginx port
+  initialDelaySeconds: 10
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+# Autoscaling
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+
+# Node selection
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Application-specific configuration (mounted as ConfigMap)
+config: {}
+  # APP_NAME: "My PHP App"
+  # APP_ENV: "production"

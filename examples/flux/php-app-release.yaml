@@ -1,0 +1,116 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2beta1
+kind: HelmRelease
+metadata:
+  name: marketing-website
+  namespace: web-applications
+spec:
+  interval: 5m
+  timeout: 10m
+  
+  chart:
+    spec:
+      chart: charts/php-webapp
+      version: "1.0.0"
+      sourceRef:
+        kind: HelmRepository
+        name: web-applications-charts
+        namespace: flux-system
+      interval: 1m
+  
+  # Helm release configuration
+  releaseName: marketing-website
+  
+  # Automatically remediate drift
+  install:
+    createNamespace: true
+    remediation:
+      retries: 3
+  
+  upgrade:
+    remediation:
+      retries: 3
+  
+  # Application-specific values
+  values:
+    # Image configuration
+    image:
+      registry: ghcr.io
+      repository: yourorg/marketing-website
+      tag: "v1.2.3"
+      pullPolicy: IfNotPresent
+    
+    # Replica configuration
+    replicaCount: 2
+    
+    # PHP-FPM resources
+    phpFpm:
+      resources:
+        requests:
+          cpu: 250m
+          memory: 256Mi
+        limits:
+          cpu: 1000m
+          memory: 1Gi
+      
+      env:
+        - name: APP_ENV
+          value: production
+        - name: APP_DEBUG
+          value: "false"
+        - name: LOG_LEVEL
+          value: info
+    
+    # Nginx resources
+    nginx:
+      enabled: true
+      resources:
+        requests:
+          cpu: 100m
+          memory: 64Mi
+        limits:
+          cpu: 500m
+          memory: 256Mi
+    
+    # Service configuration
+    service:
+      type: ClusterIP
+      port: 80
+    
+    # Ingress configuration
+    ingress:
+      enabled: true
+      className: nginx
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+        nginx.ingress.kubernetes.io/ssl-redirect: "true"
+        nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+      hosts:
+        - host: www.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+      tls:
+        - secretName: marketing-website-tls
+          hosts:
+            - www.example.com
+    
+    # Health checks
+    livenessProbe:
+      enabled: true
+      path: /health.php
+      initialDelaySeconds: 30
+      periodSeconds: 10
+    
+    readinessProbe:
+      enabled: true
+      path: /health.php
+      initialDelaySeconds: 10
+      periodSeconds: 5
+    
+    # Autoscaling
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70

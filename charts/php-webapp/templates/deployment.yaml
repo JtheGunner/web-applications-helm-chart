@@ -1,0 +1,141 @@
+{{- $fullName := include "common-webapp.fullname" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullName }}
+  labels:
+    {{- include "common-webapp.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "common-webapp.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        # Force rolling update on config changes
+        checksum/nginx-config: {{ include (print $.Template.BasePath "/nginx-config.yaml") . | sha256sum }}
+      labels:
+        {{- include "common-webapp.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "common-webapp.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      
+      # Shared volume for PHP-FPM and Nginx
+      volumes:
+        - name: app-files
+          emptyDir: {}
+        - name: nginx-config
+          configMap:
+            name: {{ $fullName }}-nginx
+        - name: php-socket
+          emptyDir: {}
+      
+      containers:
+        # PHP-FPM Container
+        - name: php-fpm
+          image: "{{ include "common-webapp.image" . }}"
+          imagePullPolicy: {{ include "common-webapp.imagePullPolicy" . }}
+          
+          securityContext:
+            {{- include "common-webapp.containerSecurityContext" . | nindent 12 }}
+          
+          # PHP-FPM listens on port 9000
+          ports:
+            - name: fpm
+              containerPort: 9000
+              protocol: TCP
+          
+          {{- with .Values.phpFpm.env }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          
+          volumeMounts:
+            - name: app-files
+              mountPath: /var/www/html
+            - name: php-socket
+              mountPath: /var/run/php
+          
+          resources:
+            {{- toYaml .Values.phpFpm.resources | nindent 12 }}
+        
+        {{- if .Values.nginx.enabled }}
+        # Nginx Sidecar Container
+        - name: nginx
+          image: "{{ .Values.nginx.image.repository }}:{{ .Values.nginx.image.tag }}"
+          imagePullPolicy: {{ .Values.nginx.image.pullPolicy }}
+          
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 101  # Nginx user
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - NET_BIND_SERVICE
+          
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          
+          volumeMounts:
+            - name: app-files
+              mountPath: /var/www/html
+              readOnly: true
+            - name: nginx-config
+              mountPath: /etc/nginx/conf.d
+              readOnly: true
+            - name: php-socket
+              mountPath: /var/run/php
+          
+          {{- if .Values.livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.livenessProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+          {{- end }}
+          
+          {{- if .Values.readinessProbe.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.readinessProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+          {{- end }}
+          
+          resources:
+            {{- toYaml .Values.nginx.resources | nindent 12 }}
+        {{- end }}
+      
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

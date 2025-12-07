@@ -1,0 +1,18 @@
+apiVersion: v2
+name: node-webapp
+description: A Helm chart for deploying Node.js web applications
+type: application
+version: 1.0.0
+appVersion: "20"
+dependencies:
+  - name: common-webapp
+    version: "1.0.0"
+    repository: "file://../common-webapp"
+maintainers:
+  - name: DevOps Team
+    email: devops@example.com
+keywords:
+  - nodejs
+  - node
+  - javascript
+  - webapp

@@ -1,0 +1,25 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: web-applications
+---
+apiVersion: source.toolkit.fluxcd.io/v1beta2
+kind: HelmRepository
+metadata:
+  name: web-applications-charts
+  namespace: flux-system
+spec:
+  interval: 5m
+  # Option 1: Local file-based repository (for development)
+  # url: file:///path/to/charts
+  
+  # Option 2: Git repository
+  type: git
+  url: https://github.com/yourorg/web-applications-helm-chart
+  ref:
+    branch: main
+  
+  # Option 3: OCI registry (recommended for production)
+  # type: oci
+  # url: oci://ghcr.io/yourorg/charts

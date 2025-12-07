@@ -1,0 +1,123 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2beta1
+kind: HelmRelease
+metadata:
+  name: api-backend
+  namespace: web-applications
+spec:
+  interval: 5m
+  timeout: 10m
+  
+  chart:
+    spec:
+      chart: charts/node-webapp
+      version: "1.0.0"
+      sourceRef:
+        kind: HelmRepository
+        name: web-applications-charts
+        namespace: flux-system
+      interval: 1m
+  
+  # Helm release configuration
+  releaseName: api-backend
+  
+  # Automatically remediate drift
+  install:
+    createNamespace: true
+    remediation:
+      retries: 3
+  
+  upgrade:
+    remediation:
+      retries: 3
+  
+  # Application-specific values
+  values:
+    # Image configuration
+    image:
+      registry: ghcr.io
+      repository: yourorg/api-backend
+      tag: "v2.5.1"
+      pullPolicy: IfNotPresent
+    
+    # Replica configuration
+    replicaCount: 3
+    
+    # Node.js configuration
+    nodejs:
+      port: 3000
+      
+      resources:
+        requests:
+          cpu: 200m
+          memory: 256Mi
+        limits:
+          cpu: 2000m
+          memory: 1Gi
+      
+      env:
+        - name: NODE_ENV
+          value: production
+        - name: PORT
+          value: "3000"
+        - name: LOG_LEVEL
+          value: info
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: api-backend-secrets
+              key: database-url
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: api-backend-secrets
+              key: redis-url
+    
+    # Service configuration
+    service:
+      type: ClusterIP
+      port: 80
+      targetPort: 3000
+    
+    # Ingress configuration
+    ingress:
+      enabled: true
+      className: nginx
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+        nginx.ingress.kubernetes.io/ssl-redirect: "true"
+        nginx.ingress.kubernetes.io/rate-limit: "100"
+        nginx.ingress.kubernetes.io/cors-allow-origin: "https://example.com"
+      hosts:
+        - host: api.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+      tls:
+        - secretName: api-backend-tls
+          hosts:
+            - api.example.com
+    
+    # Health checks
+    livenessProbe:
+      enabled: true
+      path: /health
+      port: 3000
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+    
+    readinessProbe:
+      enabled: true
+      path: /ready
+      port: 3000
+      initialDelaySeconds: 10
+      periodSeconds: 5
+      timeoutSeconds: 3
+    
+    # Autoscaling
+    autoscaling:
+      enabled: true
+      minReplicas: 3
+      maxReplicas: 20
+      targetCPUUtilizationPercentage: 70
