@@ -1,0 +1,6 @@
+dependencies:
+- name: common-webapp
+  repository: file://../common-webapp
+  version: 1.0.0
+digest: sha256:1278db22659ab47d236951674fc4df12ec97ae7999664bba29378f41aa579747
+generated: "2025-12-07T15:27:48.134123977+01:00"

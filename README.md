@@ -133,8 +133,96 @@ spec:
               pathType: Prefix
 ```
 
+## 📦 Helm Repository Setup
+
+### Option 1: Local Development
+
+**Update dependencies and install:**
+```bash
+# Update chart dependencies
+helm dependency update charts/php-webapp
+helm dependency update charts/node-webapp
+
+# Install directly from local charts
+helm install my-app charts/php-webapp \
+  --set image.repository=jthegunner/php-composer-npm-amd \
+  --set image.tag=latest
+```
+
+### Option 2: OCI Registry (Recommended for Production)
+
+**Package and publish charts:**
+```bash
+# Login to GitHub Container Registry
+echo $GITHUB_TOKEN | helm registry login ghcr.io -u USERNAME --password-stdin
+
+# Package charts
+helm package charts/common-webapp
+helm package charts/php-webapp
+helm package charts/node-webapp
+
+# Push to registry
+helm push php-webapp-1.0.0.tgz oci://ghcr.io/yourorg/helm-charts
+helm push node-webapp-1.0.0.tgz oci://ghcr.io/yourorg/helm-charts
+```
+
+**Install from OCI registry:**
+```bash
+helm install my-app oci://ghcr.io/yourorg/helm-charts/php-webapp \
+  --version 1.0.0 \
+  -f values.yaml
+```
+
+### Option 3: FluxCD with OCI Registry
+
+**Create HelmRepository:**
+```yaml
+apiVersion: source.toolkit.fluxcd.io/v1beta2
+kind: HelmRepository
+metadata:
+  name: web-applications-charts
+  namespace: flux-system
+spec:
+  interval: 5m
+  type: oci
+  url: oci://ghcr.io/yourorg/helm-charts
+```
+
+**Create HelmRelease:**
+```yaml
+apiVersion: helm.toolkit.fluxcd.io/v2beta1
+kind: HelmRelease
+metadata:
+  name: my-app
+  namespace: webhosting
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: php-webapp
+      version: "1.0.0"
+      sourceRef:
+        kind: HelmRepository
+        name: web-applications-charts
+        namespace: flux-system
+  values:
+    image:
+      repository: jthegunner/php-composer-npm-amd
+      tag: "latest"
+    ingress:
+      enabled: true
+      hosts:
+        - host: my-app.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+```
+
+**📖 For complete Helm repository setup options (Git, HTTP, automated CI/CD), see [docs/HELM-REPOSITORY.md](docs/HELM-REPOSITORY.md)**
+
 ## 📚 Documentation
 
+- **[Helm Repository Setup](docs/HELM-REPOSITORY.md)** - All deployment options (Local, Git, OCI, FluxCD)
 - **[Architecture Documentation](docs/ARCHITECTURE.md)** - Design decisions and patterns
 - **[Deployment Guide](docs/DEPLOYMENT.md)** - Comprehensive deployment instructions
 - **[PHP Chart README](charts/php-webapp/README.md)** - PHP-specific configuration

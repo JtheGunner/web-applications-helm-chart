@@ -36,12 +36,12 @@ spec:
     # Image configuration
     image:
       registry: ghcr.io
-      repository: yourorg/marketing-website
-      tag: "v1.2.3"
+      repository: jthegunner/php-composer-npm-amd
+      tag: "latest"
       pullPolicy: IfNotPresent
     
     # Replica configuration
-    replicaCount: 2
+    replicaCount: 1
     
     # PHP-FPM resources
     phpFpm:
