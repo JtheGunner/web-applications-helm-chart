@@ -1,0 +1,20 @@
+# =============================================================================
+# Beispiel: Minimales Deployment ohne Datenbank
+# =============================================================================
+# Deployment: helm install my-app charts/webapp -f examples/no-database.yaml
+# =============================================================================
+
+php:
+  enabled: true
+  image:
+    repository: jthegunner/my-simple-app
+    tag: "latest"
+  replicaCount: 1
+  env:
+    - name: APP_ENV
+      value: development
+
+  ingress:
+    enabled: false
+
+# Kein postgresql.enabled oder mariadb.enabled = keine Datenbank

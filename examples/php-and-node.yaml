@@ -1,0 +1,88 @@
+# =============================================================================
+# Beispiel: PHP + Node.js mit PostgreSQL
+# =============================================================================
+# Use Case: PHP für Frontend, Node.js für API/Backend
+# Deployment: helm install my-app charts/webapp -f examples/php-and-node.yaml
+# =============================================================================
+
+php:
+  enabled: true
+  image:
+    repository: jthegunner/my-php-frontend
+    tag: "v1.0.0"
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+  env:
+    - name: APP_ENV
+      value: production
+    - name: API_URL
+      value: "https://api.example.com"
+
+  ingress:
+    enabled: true
+    className: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+    hosts:
+      - host: app.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: app-tls
+        hosts:
+          - app.example.com
+
+nodejs:
+  enabled: true
+  image:
+    repository: jthegunner/my-node-api
+    tag: "v2.0.0"
+  port: 3000
+  replicaCount: 3
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  env:
+    - name: NODE_ENV
+      value: production
+    - name: CORS_ORIGIN
+      value: "https://app.example.com"
+
+  # Node.js API auf eigener Subdomain
+  ingress:
+    enabled: true
+    className: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+    hosts:
+      - host: api.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: api-tls
+        hosts:
+          - api.example.com
+
+# Gemeinsame Datenbank für beide Runtimes
+postgresql:
+  enabled: true
+  auth:
+    username: "myapp"
+    password: "changeme"
+    database: "myapp_production"
+  primary:
+    persistence:
+      enabled: true
+      size: 20Gi

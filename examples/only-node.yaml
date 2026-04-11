@@ -1,0 +1,58 @@
+# =============================================================================
+# Beispiel: Nur Node.js mit MariaDB
+# =============================================================================
+# Deployment: helm install my-api charts/webapp -f examples/only-node.yaml
+# =============================================================================
+
+nodejs:
+  enabled: true
+  image:
+    repository: jthegunner/my-node-api
+    tag: "v2.0.0"
+  port: 3000
+  replicaCount: 3
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  env:
+    - name: NODE_ENV
+      value: production
+    - name: LOG_LEVEL
+      value: info
+
+  ingress:
+    enabled: true
+    className: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+    hosts:
+      - host: api.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: api-tls
+        hosts:
+          - api.example.com
+
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 70
+
+mariadb:
+  enabled: true
+  auth:
+    rootPassword: "changeme-root"
+    username: "api"
+    password: "changeme"
+    database: "api_production"
+  primary:
+    persistence:
+      enabled: true
+      size: 10Gi

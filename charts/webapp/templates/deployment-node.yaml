@@ -1,0 +1,99 @@
+{{- if .Values.nodejs.enabled }}
+{{- $fullName := include "webapp.fullname" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullName }}-nodejs
+  labels:
+    {{- include "webapp.nodejs.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.nodejs.autoscaling.enabled }}
+  replicas: {{ .Values.nodejs.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "webapp.nodejs.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- if .Values.config }}
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- end }}
+      labels:
+        {{- include "webapp.nodejs.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "webapp.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+
+      containers:
+        - name: nodejs
+          image: "{{ include "webapp.nodejs.image" . }}"
+          imagePullPolicy: {{ include "webapp.nodejs.imagePullPolicy" . }}
+
+          securityContext:
+            {{- include "webapp.containerSecurityContext" . | nindent 12 }}
+
+          {{- if .Values.nodejs.command }}
+          command:
+            {{- toYaml .Values.nodejs.command | nindent 12 }}
+          {{- end }}
+
+          ports:
+            - name: http
+              containerPort: {{ .Values.nodejs.port }}
+              protocol: TCP
+
+          env:
+            - name: PORT
+              value: {{ .Values.nodejs.port | quote }}
+            {{- include "webapp.databaseEnvVars" . | nindent 12 }}
+            {{- with .Values.nodejs.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+
+          {{- if .Values.nodejs.livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.nodejs.livenessProbe.path }}
+              port: {{ .Values.nodejs.livenessProbe.port }}
+            initialDelaySeconds: {{ .Values.nodejs.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.nodejs.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.nodejs.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.nodejs.livenessProbe.failureThreshold }}
+          {{- end }}
+
+          {{- if .Values.nodejs.readinessProbe.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.nodejs.readinessProbe.path }}
+              port: {{ .Values.nodejs.readinessProbe.port }}
+            initialDelaySeconds: {{ .Values.nodejs.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.nodejs.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.nodejs.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.nodejs.readinessProbe.failureThreshold }}
+          {{- end }}
+
+          resources:
+            {{- toYaml .Values.nodejs.resources | nindent 12 }}
+
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

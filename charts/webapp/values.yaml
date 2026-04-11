@@ -1,0 +1,247 @@
+# =============================================================================
+# Webapp Helm Chart – Default Values
+# =============================================================================
+# Aktiviere php.enabled und/oder nodejs.enabled um die jeweilige Runtime
+# zu deployen. Mindestens eine Runtime muss aktiviert sein.
+# =============================================================================
+
+# =============================================================================
+# PHP Runtime
+# =============================================================================
+php:
+  enabled: false
+
+  image:
+    registry: ""
+    repository: ""
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+  replicaCount: 1
+
+  # PHP-FPM Container
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1024Mi
+
+  # Environment Variables für den PHP-FPM Container
+  env: []
+    # - name: APP_ENV
+    #   value: production
+    # - name: APP_KEY
+    #   valueFrom:
+    #     secretKeyRef:
+    #       name: app-secrets
+    #       key: app-key
+
+  # PHP-FPM Konfiguration (optional, als ConfigMap gemountet)
+  config: {}
+    # www.conf: |
+    #   [www]
+    #   pm = dynamic
+    #   pm.max_children = 50
+
+  # Nginx Sidecar (wird immer mit PHP deployed)
+  nginx:
+    image:
+      repository: nginx
+      tag: "1.27-alpine"
+      pullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 100m
+        memory: 64Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+
+  # Service
+  service:
+    type: ClusterIP
+    port: 80
+    annotations: {}
+
+  # Ingress
+  ingress:
+    enabled: false
+    className: ""
+    annotations: {}
+      # cert-manager.io/cluster-issuer: letsencrypt-prod
+      # nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    hosts: []
+      # - host: app.example.com
+      #   paths:
+      #     - path: /
+      #       pathType: Prefix
+    tls: []
+      # - secretName: app-tls
+      #   hosts:
+      #     - app.example.com
+
+  # Health Checks
+  livenessProbe:
+    enabled: true
+    path: /health.php
+    port: 80
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  readinessProbe:
+    enabled: true
+    path: /health.php
+    port: 80
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+  # Autoscaling
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+
+# =============================================================================
+# Node.js Runtime
+# =============================================================================
+nodejs:
+  enabled: false
+
+  image:
+    registry: ""
+    repository: ""
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+  # Application Port
+  port: 3000
+
+  # Custom Command (default: npm start)
+  command: []
+    # - node
+    # - server.js
+
+  replicaCount: 1
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 1000m
+      memory: 512Mi
+
+  # Environment Variables
+  env:
+    - name: NODE_ENV
+      value: production
+
+  # Service
+  service:
+    type: ClusterIP
+    port: 80
+    annotations: {}
+
+  # Ingress
+  ingress:
+    enabled: false
+    className: ""
+    annotations: {}
+    hosts: []
+    tls: []
+
+  # Health Checks
+  livenessProbe:
+    enabled: true
+    path: /health
+    port: 3000
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  readinessProbe:
+    enabled: true
+    path: /ready
+    port: 3000
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+  # Autoscaling
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+
+# =============================================================================
+# Datenbank – PostgreSQL (Bitnami Sub-Chart)
+# =============================================================================
+# Aktiviere postgresql.enabled ODER mariadb.enabled, nicht beides.
+# Doku: https://github.com/bitnami/charts/tree/main/bitnami/postgresql
+# =============================================================================
+postgresql:
+  enabled: false
+  auth:
+    postgresPassword: ""
+    username: "webapp"
+    password: ""
+    database: "webapp"
+    # existingSecret: ""
+  primary:
+    persistence:
+      enabled: true
+      size: 8Gi
+
+# =============================================================================
+# Datenbank – MariaDB (Bitnami Sub-Chart)
+# =============================================================================
+# Aktiviere mariadb.enabled ODER postgresql.enabled, nicht beides.
+# Doku: https://github.com/bitnami/charts/tree/main/bitnami/mariadb
+# =============================================================================
+mariadb:
+  enabled: false
+  auth:
+    rootPassword: ""
+    username: "webapp"
+    password: ""
+    database: "webapp"
+    # existingSecret: ""
+  primary:
+    persistence:
+      enabled: true
+      size: 8Gi
+
+# =============================================================================
+# Gemeinsame Konfiguration
+# =============================================================================
+nameOverride: ""
+fullnameOverride: ""
+imagePullSecrets: []
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext:
+  fsGroup: 1000
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Allgemeine App-Config (als ConfigMap gemountet)
+config: {}
+  # APP_NAME: "My App"

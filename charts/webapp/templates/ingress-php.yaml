@@ -1,0 +1,43 @@
+{{- if and .Values.php.enabled .Values.php.ingress.enabled }}
+{{- $fullName := include "webapp.fullname" . -}}
+{{- $svcPort := .Values.php.service.port -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $fullName }}-php
+  labels:
+    {{- include "webapp.php.labels" . | nindent 4 }}
+  {{- with .Values.php.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.php.ingress.className }}
+  ingressClassName: {{ .Values.php.ingress.className }}
+  {{- end }}
+  {{- if .Values.php.ingress.tls }}
+  tls:
+    {{- range .Values.php.ingress.tls }}
+    - hosts:
+        {{- range .hosts }}
+        - {{ . | quote }}
+        {{- end }}
+      secretName: {{ .secretName }}
+    {{- end }}
+  {{- end }}
+  rules:
+    {{- range .Values.php.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ $fullName }}-php
+                port:
+                  number: {{ $svcPort }}
+          {{- end }}
+    {{- end }}
+{{- end }}

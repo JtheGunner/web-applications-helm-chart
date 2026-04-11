@@ -1,0 +1,22 @@
+{{- if and .Values.nodejs.enabled .Values.nodejs.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "webapp.fullname" . }}-nodejs
+  labels:
+    {{- include "webapp.nodejs.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "webapp.fullname" . }}-nodejs
+  minReplicas: {{ .Values.nodejs.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.nodejs.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.nodejs.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}

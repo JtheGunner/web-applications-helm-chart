@@ -1,178 +1,115 @@
 # Deployment Guide
 
-Comprehensive guide for deploying web applications using this Helm chart library.
+Anleitung für das Deployment von Webapplikationen mit dem Webapp Helm Chart.
 
-## Table of Contents
+## Inhaltsverzeichnis
 
-- [Prerequisites](#prerequisites)
-- [Local Development](#local-development)
+- [Voraussetzungen](#voraussetzungen)
+- [Lokale Entwicklung](#lokale-entwicklung)
 - [Production Deployment](#production-deployment)
 - [FluxCD Integration](#fluxcd-integration)
-- [CI/CD Pipeline](#cicd-pipeline)
 - [Troubleshooting](#troubleshooting)
 
-## Prerequisites
+## Voraussetzungen
 
-### Required Tools
+### Benötigte Tools
 
 - **Kubernetes Cluster** (1.19+)
 - **Helm** (3.8+)
-- **kubectl** (configured with cluster access)
-- **Docker** (for building images)
+- **kubectl** (mit Cluster-Zugang konfiguriert)
+- **Docker** (zum Bauen der Images)
 
-### Optional Tools
+### Optionale Tools
 
-- **FluxCD** (for GitOps deployments)
-- **cert-manager** (for automatic TLS certificates)
-- **Prometheus** (for monitoring)
+- **FluxCD** (für GitOps Deployments)
+- **cert-manager** (für automatische TLS-Zertifikate)
 
-### Cluster Requirements
+### Cluster-Anforderungen
 
 - **Ingress Controller** (nginx, traefik, etc.)
-- **Storage Class** (if using persistent volumes)
-- **Namespace** with appropriate RBAC
+- **Storage Class** (für Datenbank Persistence)
 
-## Local Development
+## Lokale Entwicklung
 
-### 1. Build Application Image
-
-#### PHP Application
+### 1. Chart Dependencies aktualisieren
 
 ```bash
-cd examples/php-app
-
-# Build multi-stage Docker image
-docker build -t localhost:5000/my-php-app:dev .
-
-# Test locally
-docker run -p 8000:9000 localhost:5000/my-php-app:dev
-
-# Push to local registry (optional)
-docker push localhost:5000/my-php-app:dev
-```
-
-#### Node.js Application
-
-```bash
-cd examples/node-app
-
-# Build image
-docker build -t localhost:5000/my-node-app:dev .
-
-# Test locally
-docker run -p 3000:3000 localhost:5000/my-node-app:dev
-
-# Verify health endpoint
-curl http://localhost:3000/health
-```
-
-### 2. Install Chart Locally
-
-#### Update Dependencies
-
-```bash
-cd charts/php-webapp
+cd charts/webapp
 helm dependency update
 ```
 
-#### Install to Kubernetes
+### 2. Chart installieren
 
+**PHP Applikation:**
 ```bash
-# Install PHP app
-helm install my-php-app charts/php-webapp \
-  --set image.repository=localhost:5000/my-php-app \
-  --set image.tag=dev \
-  --set ingress.enabled=false \
-  --set replicaCount=1
-
-# Install Node app
-helm install my-node-app charts/node-webapp \
-  --set image.repository=localhost:5000/my-node-app \
-  --set image.tag=dev \
-  --set ingress.enabled=false
+helm install my-app charts/webapp \
+  --set php.enabled=true \
+  --set php.image.repository=localhost:5000/my-php-app \
+  --set php.image.tag=dev
 ```
 
-#### Verify Deployment
+**Node.js Applikation:**
+```bash
+helm install my-api charts/webapp \
+  --set nodejs.enabled=true \
+  --set nodejs.image.repository=localhost:5000/my-node-api \
+  --set nodejs.image.tag=dev \
+  --set nodejs.port=3000
+```
+
+**Mit Values-Datei:**
+```bash
+helm install my-app charts/webapp -f examples/only-php.yaml
+```
+
+### 3. Deployment prüfen
 
 ```bash
-# Check pods
-kubectl get pods
+# Pods anzeigen
+kubectl get pods -l app.kubernetes.io/instance=my-app
 
-# Check logs (PHP)
+# Logs (PHP)
 kubectl logs <pod-name> -c php-fpm
 kubectl logs <pod-name> -c nginx
 
-# Check logs (Node)
-kubectl logs <pod-name>
+# Logs (Node.js)
+kubectl logs <pod-name> -c nodejs
 
-# Port-forward for testing
-kubectl port-forward svc/my-php-app 8080:80
+# Port-Forward zum Testen
+kubectl port-forward svc/my-app-webapp-php 8080:80
 curl http://localhost:8080
 ```
 
-### 3. Local Testing with Values Override
+### 4. Lokale Datenbank
 
-Create `values-dev.yaml`:
-
-```yaml
-# values-dev.yaml
-image:
-  repository: localhost:5000/my-app
-  tag: dev
-  pullPolicy: Always
-
-replicaCount: 1
-
-ingress:
-  enabled: true
-  className: nginx
-  hosts:
-    - host: myapp.local
-      paths:
-        - path: /
-          pathType: Prefix
-
-# Disable autoscaling for dev
-autoscaling:
-  enabled: false
-```
-
-Deploy:
 ```bash
-helm install my-app charts/php-webapp -f values-dev.yaml
+# Mit PostgreSQL
+helm install my-app charts/webapp \
+  --set php.enabled=true \
+  --set php.image.repository=my-app \
+  --set postgresql.enabled=true \
+  --set postgresql.auth.username=myapp \
+  --set postgresql.auth.password=localdev \
+  --set postgresql.auth.database=myapp_dev
+
+# DB-Verbindung prüfen
+kubectl exec -it <php-pod> -c php-fpm -- env | grep DB_
 ```
 
 ## Production Deployment
 
-### 1. Build Production Image
-
-```bash
-# Tag with version
-docker build -t ghcr.io/yourorg/my-app:v1.2.3 .
-
-# Security scan
-docker scan ghcr.io/yourorg/my-app:v1.2.3
-
-# Push to registry
-docker push ghcr.io/yourorg/my-app:v1.2.3
-```
-
-### 2. Create Production Values
+### 1. Production Values erstellen
 
 ```yaml
 # values-production.yaml
-image:
-  registry: ghcr.io
-  repository: yourorg/my-app
-  tag: v1.2.3
-  pullPolicy: IfNotPresent
-
-imagePullSecrets:
-  - name: ghcr-credentials
-
-replicaCount: 3
-
-phpFpm:
+php:
+  enabled: true
+  image:
+    registry: ghcr.io
+    repository: jthegunner/my-app
+    tag: "v1.2.3"
+    pullPolicy: IfNotPresent
+  replicaCount: 3
   resources:
     requests:
       cpu: 500m
@@ -183,128 +120,90 @@ phpFpm:
   env:
     - name: APP_ENV
       value: production
-    - name: DATABASE_URL
-      valueFrom:
-        secretKeyRef:
-          name: app-secrets
-          key: database-url
 
-nginx:
+  ingress:
+    enabled: true
+    className: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    hosts:
+      - host: app.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: app-tls
+        hosts:
+          - app.example.com
+
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 70
+
+imagePullSecrets:
+  - name: ghcr-credentials
+
+postgresql:
   enabled: true
-  resources:
-    requests:
-      cpu: 100m
-      memory: 128Mi
-    limits:
-      cpu: 500m
-      memory: 256Mi
-
-service:
-  type: ClusterIP
-  port: 80
-
-ingress:
-  enabled: true
-  className: nginx
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/rate-limit: "100"
-  hosts:
-    - host: app.example.com
-      paths:
-        - path: /
-          pathType: Prefix
-  tls:
-    - secretName: app-tls
-      hosts:
-        - app.example.com
-
-livenessProbe:
-  enabled: true
-  initialDelaySeconds: 30
-  periodSeconds: 10
-
-readinessProbe:
-  enabled: true
-  initialDelaySeconds: 10
-  periodSeconds: 5
-
-autoscaling:
-  enabled: true
-  minReplicas: 3
-  maxReplicas: 20
-  targetCPUUtilizationPercentage: 70
-
-podAnnotations:
-  prometheus.io/scrape: "true"
-  prometheus.io/port: "9090"
+  auth:
+    username: "myapp"
+    password: "secure-production-password"
+    database: "myapp_production"
+  primary:
+    persistence:
+      enabled: true
+      size: 50Gi
 ```
 
-### 3. Deploy to Production
+### 2. Deployen
 
 ```bash
-# Create namespace
+# Namespace erstellen
 kubectl create namespace production
 
-# Create image pull secret (if using private registry)
+# Image Pull Secret erstellen
 kubectl create secret docker-registry ghcr-credentials \
   --docker-server=ghcr.io \
-  --docker-username=yourorg \
+  --docker-username=jthegunner \
   --docker-password=$GITHUB_TOKEN \
   -n production
 
-# Deploy application
-helm install my-app charts/php-webapp \
+# Deployment
+helm install my-app charts/webapp \
   -f values-production.yaml \
   -n production
 ```
 
-### 4. Verify Deployment
+### 3. Verifizieren
 
 ```bash
-# Check deployment status
-kubectl get deployment -n production
-kubectl get pods -n production
-
-# Check ingress
+kubectl get all -n production -l app.kubernetes.io/instance=my-app
 kubectl get ingress -n production
-
-# Test endpoint
-curl https://app.example.com/health
-
-# Watch rollout
-kubectl rollout status deployment/my-app -n production
+curl https://app.example.com/health.php
 ```
 
 ## FluxCD Integration
 
-### 1. Setup HelmRepository
+### 1. HelmRepository erstellen
 
 ```yaml
-# infrastructure/helmrepository.yaml
 apiVersion: source.toolkit.fluxcd.io/v1beta2
 kind: HelmRepository
 metadata:
-  name: web-applications
+  name: web-applications-charts
   namespace: flux-system
 spec:
   interval: 5m
-  type: git
-  url: https://github.com/yourorg/web-applications-helm-chart
-  ref:
-    branch: main
+  type: oci
+  url: oci://ghcr.io/jthegunner/helm-charts
 ```
 
-Apply:
-```bash
-kubectl apply -f infrastructure/helmrepository.yaml
-```
-
-### 2. Create HelmRelease
+### 2. HelmRelease erstellen
 
 ```yaml
-# applications/production/my-app.yaml
 apiVersion: helm.toolkit.fluxcd.io/v2beta1
 kind: HelmRelease
 metadata:
@@ -312,242 +211,79 @@ metadata:
   namespace: production
 spec:
   interval: 5m
-  timeout: 10m
-  
   chart:
     spec:
-      chart: charts/php-webapp
+      chart: webapp
       version: "1.0.0"
       sourceRef:
         kind: HelmRepository
-        name: web-applications
+        name: web-applications-charts
         namespace: flux-system
-  
-  releaseName: my-app
-  
-  install:
-    createNamespace: true
-    remediation:
-      retries: 3
-  
-  upgrade:
-    remediation:
-      retries: 3
-  
-  valuesFrom:
-    - kind: ConfigMap
-      name: my-app-config
-    - kind: Secret
-      name: my-app-secrets
-  
+
   values:
-    image:
-      repository: ghcr.io/yourorg/my-app
-      tag: v1.2.3
+    php:
+      enabled: true
+      image:
+        repository: jthegunner/my-app
+        tag: "v1.2.3"
+    postgresql:
+      enabled: true
+      auth:
+        database: myapp
+        username: myapp
+        password: changeme
 ```
 
-Apply:
-```bash
-kubectl apply -f applications/production/my-app.yaml
-```
-
-### 3. Monitor FluxCD
+### 3. Monitoring
 
 ```bash
-# Watch reconciliation
 flux get helmreleases -n production
-
-# Check logs
 flux logs --kind=HelmRelease --name=my-app
-
-# Force reconciliation
 flux reconcile helmrelease my-app -n production
-```
-
-## CI/CD Pipeline
-
-### GitHub Actions Example
-
-```yaml
-# .github/workflows/deploy.yaml
-name: Deploy Application
-
-on:
-  push:
-    tags:
-      - 'v*'
-
-jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      
-      - name: Build Docker image
-        run: |
-          docker build -t ghcr.io/${{ github.repository }}:${{ github.ref_name }} .
-      
-      - name: Push to registry
-        run: |
-          echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-          docker push ghcr.io/${{ github.repository }}:${{ github.ref_name }}
-      
-      - name: Update HelmRelease
-        run: |
-          # Update tag in FluxCD HelmRelease
-          yq e ".spec.values.image.tag = \"${{ github.ref_name }}\"" -i flux/production/my-app.yaml
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-          git add flux/production/my-app.yaml
-          git commit -m "Update image tag to ${{ github.ref_name }}"
-          git push
 ```
 
 ## Troubleshooting
 
-### Pods Not Starting
+### Pods starten nicht
 
-**Check pod status:**
 ```bash
 kubectl get pods -n <namespace>
 kubectl describe pod <pod-name> -n <namespace>
 ```
 
-**Common issues:**
-- Image pull errors → Check image name and pull secrets
-- CrashLoopBackOff → Check application logs
-- Pending → Check resource availability
+**Häufige Ursachen:**
+- Image Pull Error → Image-Name und Pull Secrets prüfen
+- CrashLoopBackOff → Application Logs prüfen
+- Pending → Cluster-Resourcen prüfen
 
-### Health Check Failures
+### Health Check Fehler
 
-**Verify health endpoints:**
 ```bash
-# Port-forward to pod
 kubectl port-forward <pod-name> 8080:80
-
-# Test endpoint
-curl http://localhost:8080/health
+curl http://localhost:8080/health.php   # PHP
+curl http://localhost:3000/health       # Node.js
 ```
 
-**Common issues:**
-- Wrong path (`/health` vs `/health.php`)
-- Wrong port (3000 vs 80)
-- Application not ready (increase `initialDelaySeconds`)
+### Datenbank-Verbindung
 
-### PHP-FPM Issues
-
-**Check PHP-FPM configuration:**
 ```bash
-kubectl exec <pod-name> -c php-fpm -- php-fpm -t
-```
+# Env-Vars prüfen
+kubectl exec -it <pod-name> -c php-fpm -- env | grep DB_
 
-**Check Nginx to PHP-FPM connection:**
-```bash
-kubectl logs <pod-name> -c nginx
-# Look for "502 Bad Gateway" errors
-```
-
-**Common issues:**
-- PHP-FPM not listening on port 9000
-- Application files not in `/var/www/html/public`
-- Permissions issues
-
-### Ingress Issues
-
-**Check ingress status:**
-```bash
-kubectl get ingress -n <namespace>
-kubectl describe ingress <ingress-name> -n <namespace>
-```
-
-**Common issues:**
-- DNS not pointing to ingress IP
-- TLS certificate not issued (check cert-manager)
-- Ingress class mismatch
-
-### Resource Limits
-
-**Check resource usage:**
-```bash
-kubectl top pods -n <namespace>
-```
-
-**If pods are OOMKilled:**
-```yaml
-# Increase memory limits
-resources:
-  limits:
-    memory: 2Gi  # Increase this
-```
-
-### Debug Mode
-
-**Enable debug logging:**
-```yaml
-# For PHP
-phpFpm:
-  env:
-    - name: APP_DEBUG
-      value: "true"
-    - name: LOG_LEVEL
-      value: debug
-
-# For Node
-nodejs:
-  env:
-    - name: NODE_ENV
-      value: development
-    - name: LOG_LEVEL
-      value: debug
+# PostgreSQL Zugang testen
+kubectl exec -it <release>-postgresql-0 -- psql -U webapp -d webapp
 ```
 
 ### Rolling Back
 
-**Helm rollback:**
 ```bash
-# List releases
-helm list -n <namespace>
-
-# Check history
+# Helm History
 helm history <release-name> -n <namespace>
 
-# Rollback to previous version
+# Rollback
 helm rollback <release-name> -n <namespace>
 ```
 
-**FluxCD rollback:**
-```bash
-# Update HelmRelease with previous tag
-kubectl edit helmrelease <release-name> -n <namespace>
-
-# Or commit previous version in Git
-git revert <commit-hash>
-git push
-```
-
-## Best Practices
-
-### 1. Resource Management
-- Always set resource requests and limits
-- Use HPA for dynamic scaling
-- Monitor resource usage
-
-### 2. Security
-- Never use `latest` tag in production
-- Always use image pull secrets for private registries
-- Enable Pod Security Standards
-- Regular security scans
-
-### 3. Monitoring
-- Implement health checks
-- Use Prometheus metrics
-- Set up alerts for failures
-
-### 4. Deployment Strategy
-- Use blue-green or canary deployments
-- Test in staging first
-- Automate with CI/CD
-
 ---
 
-**Need Help?** Check the [Architecture Documentation](ARCHITECTURE.md) or open an issue.
+**Weitere Infos:** Siehe [ARCHITECTURE.md](ARCHITECTURE.md)

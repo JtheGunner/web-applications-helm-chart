@@ -1,194 +1,93 @@
-# Web Applications Helm Chart Library
+# Web Applications Helm Chart
 
-A production-ready Helm chart library system for deploying PHP and Node.js web applications on Kubernetes with best practices, optimal performance, and FluxCD integration.
+Ein universelles Helm Chart für das Deployment von PHP und/oder Node.js Webapplikationen auf Kubernetes mit optionaler Datenbank-Unterstützung (PostgreSQL, MariaDB).
 
 ## 🎯 Features
 
-- **Library Chart Pattern** - Reusable templates for DRY Kubernetes deployments
-- **Multi-Stage Dockerfiles** - Assets built at Docker build-time, not runtime
-- **Production-Ready Security** - Non-root users, read-only filesystems, capability drops
-- **PHP-FPM + Nginx** - Production-grade PHP deployment with sidecar pattern
-- **Health Checks** - Built-in liveness and readiness probes
-- **Autoscaling** - HPA support out of the box
-- **FluxCD Ready** - GitOps-friendly with minimal configuration
+- **Ein Chart für alles** – PHP, Node.js oder beides gleichzeitig per Values steuern
+- **Datenbank-Support** – PostgreSQL und MariaDB als optionale Sub-Charts (Bitnami)
+- **PHP-FPM + Nginx** – Production-grade PHP Deployment mit Sidecar Pattern
+- **Separate Deployments** – PHP und Node.js skalieren unabhängig voneinander
+- **Production-Ready Security** – Non-root Users, Capability Drops, Security Headers
+- **Health Checks** – Liveness und Readiness Probes
+- **Autoscaling** – HPA Support pro Runtime
+- **FluxCD Ready** – GitOps-friendly mit minimaler Konfiguration
 
-## 📁 Repository Structure
+## 📁 Repository Struktur
 
 ```
 web-applications-helm-chart/
 ├── charts/
-│   ├── common-webapp/          # Library chart (reusable templates)
-│   │   ├── Chart.yaml
-│   │   ├── values.yaml
-│   │   └── templates/
-│   │       ├── _helpers.tpl    # Name and label helpers
-│   │       ├── _deployment.tpl # Deployment template
-│   │       ├── _service.tpl    # Service template
-│   │       ├── _ingress.tpl    # Ingress template
-│   │       └── _configmap.tpl  # ConfigMap template
-│   │
-│   ├── php-webapp/             # PHP application chart
-│   │   ├── Chart.yaml
-│   │   ├── values.yaml
-│   │   └── templates/
-│   │       ├── deployment.yaml # PHP-FPM + Nginx deployment
-│   │       ├── nginx-config.yaml
-│   │       ├── service.yaml
-│   │       ├── ingress.yaml
-│   │       └── configmap.yaml
-│   │
-│   └── node-webapp/            # Node.js application chart
-│       ├── Chart.yaml
-│       ├── values.yaml
+│   └── webapp/                     # Das einheitliche Helm Chart
+│       ├── Chart.yaml              # Chart-Definition + DB Dependencies
+│       ├── values.yaml             # Alle konfigurierbaren Values
 │       └── templates/
-│           ├── deployment.yaml
-│           ├── service.yaml
-│           ├── ingress.yaml
-│           └── configmap.yaml
+│           ├── _helpers.tpl        # Name, Label, Image Helpers
+│           ├── _validate.tpl       # Input-Validierung
+│           ├── deployment-php.yaml # PHP-FPM + Nginx (conditional)
+│           ├── deployment-node.yaml# Node.js (conditional)
+│           ├── service-php.yaml    # PHP Service
+│           ├── service-node.yaml   # Node Service
+│           ├── ingress-php.yaml    # PHP Ingress
+│           ├── ingress-node.yaml   # Node Ingress
+│           ├── nginx-config.yaml   # Nginx Config für PHP-FPM
+│           ├── configmap.yaml      # App-Konfiguration
+│           ├── hpa-php.yaml        # HPA für PHP
+│           ├── hpa-node.yaml       # HPA für Node.js
+│           ├── serviceaccount.yaml # ServiceAccount
+│           └── NOTES.txt           # Helm install Output
 │
 ├── examples/
-│   ├── php-app/                # Example PHP application
-│   │   ├── Dockerfile          # Multi-stage build
-│   │   ├── package.json
-│   │   ├── composer.json
-│   │   └── public/
-│   │
-│   ├── node-app/               # Example Node.js application
-│   │   ├── Dockerfile          # Multi-stage build
-│   │   ├── package.json
-│   │   └── server.js
-│   │
-│   └── flux/                   # FluxCD examples
-│       ├── helmrepository.yaml
-│       ├── php-app-release.yaml
-│       └── node-app-release.yaml
+│   ├── only-php.yaml              # Nur PHP + PostgreSQL
+│   ├── only-node.yaml             # Nur Node.js + MariaDB
+│   ├── php-and-node.yaml          # Beides + PostgreSQL
+│   ├── no-database.yaml           # Ohne Datenbank
+│   ├── php-app/                   # Beispiel PHP Applikation
+│   ├── node-app/                  # Beispiel Node.js Applikation
+│   └── flux/                      # FluxCD Beispiele
 │
 └── docs/
-    ├── ARCHITECTURE.md         # Architecture decisions
-    └── DEPLOYMENT.md           # Deployment guide
+    ├── ARCHITECTURE.md            # Architektur-Entscheidungen
+    ├── DEPLOYMENT.md              # Deployment-Anleitung
+    └── HELM-REPOSITORY.md         # Helm Repository Setup
 ```
 
 ## 🚀 Quick Start
 
-### 1. Build Your Application Image
+### 1. Dependencies aktualisieren
 
-**PHP Application:**
 ```bash
-cd examples/php-app
-docker build -t yourorg/my-php-app:v1.0.0 .
-docker push yourorg/my-php-app:v1.0.0
-```
-
-**Node.js Application:**
-```bash
-cd examples/node-app
-docker build -t yourorg/my-node-app:v1.0.0 .
-docker push yourorg/my-node-app:v1.0.0
-```
-
-### 2. Install Chart Locally (Development)
-
-**Update chart dependencies:**
-```bash
-cd charts/php-webapp
+cd charts/webapp
 helm dependency update
 ```
 
-**Install the chart:**
+### 2. Chart installieren
+
+**Nur PHP:**
 ```bash
-helm install my-php-app charts/php-webapp \
-  --set image.repository=yourorg/my-php-app \
-  --set image.tag=v1.0.0 \
-  --set ingress.enabled=false
+helm install my-app charts/webapp \
+  --set php.enabled=true \
+  --set php.image.repository=jthegunner/my-php-app \
+  --set php.image.tag=v1.0.0
 ```
 
-### 3. Deploy with FluxCD (Production)
-
-See [examples/flux/](examples/flux/) directory for complete FluxCD HelmRelease examples.
-
-**Simple deployment:**
-```yaml
-apiVersion: helm.toolkit.fluxcd.io/v2beta1
-kind: HelmRelease
-metadata:
-  name: my-app
-  namespace: web-applications
-spec:
-  chart:
-    spec:
-      chart: charts/php-webapp
-      sourceRef:
-        kind: HelmRepository
-        name: web-applications-charts
-  values:
-    image:
-      repository: yourorg/my-php-app
-      tag: v1.0.0
-    ingress:
-      enabled: true
-      hosts:
-        - host: app.example.com
-          paths:
-            - path: /
-              pathType: Prefix
-```
-
-## 📦 Helm Repository Setup
-
-### Option 1: Local Development
-
-**Update dependencies and install:**
+**Nur Node.js:**
 ```bash
-# Update chart dependencies
-helm dependency update charts/php-webapp
-helm dependency update charts/node-webapp
-
-# Install directly from local charts
-helm install my-app charts/php-webapp \
-  --set image.repository=jthegunner/php-composer-npm-amd \
-  --set image.tag=latest
+helm install my-api charts/webapp \
+  --set nodejs.enabled=true \
+  --set nodejs.image.repository=jthegunner/my-node-api \
+  --set nodejs.image.tag=v2.0.0
 ```
 
-### Option 2: OCI Registry (Recommended for Production)
-
-**Package and publish charts:**
+**PHP + Node.js + PostgreSQL:**
 ```bash
-# Login to GitHub Container Registry
-echo $GITHUB_TOKEN | helm registry login ghcr.io -u USERNAME --password-stdin
-
-# Package charts
-helm package charts/common-webapp
-helm package charts/php-webapp
-helm package charts/node-webapp
-
-# Push to registry
-helm push php-webapp-1.0.0.tgz oci://ghcr.io/yourorg/helm-charts
-helm push node-webapp-1.0.0.tgz oci://ghcr.io/yourorg/helm-charts
+helm install my-app charts/webapp -f examples/php-and-node.yaml
 ```
 
-**Install from OCI registry:**
-```bash
-helm install my-app oci://ghcr.io/yourorg/helm-charts/php-webapp \
-  --version 1.0.0 \
-  -f values.yaml
-```
+### 3. Deploy mit FluxCD (Production)
 
-### Option 3: FluxCD with OCI Registry
+Siehe [examples/flux/](examples/flux/) für vollständige FluxCD HelmRelease Beispiele.
 
-**Create HelmRepository:**
-```yaml
-apiVersion: source.toolkit.fluxcd.io/v1beta2
-kind: HelmRepository
-metadata:
-  name: web-applications-charts
-  namespace: flux-system
-spec:
-  interval: 5m
-  type: oci
-  url: oci://ghcr.io/yourorg/helm-charts
-```
-
-**Create HelmRelease:**
 ```yaml
 apiVersion: helm.toolkit.fluxcd.io/v2beta1
 kind: HelmRelease
@@ -196,134 +95,160 @@ metadata:
   name: my-app
   namespace: webhosting
 spec:
-  interval: 5m
   chart:
     spec:
-      chart: php-webapp
-      version: "1.0.0"
+      chart: webapp
       sourceRef:
         kind: HelmRepository
         name: web-applications-charts
-        namespace: flux-system
   values:
-    image:
-      repository: jthegunner/php-composer-npm-amd
-      tag: "latest"
-    ingress:
+    php:
       enabled: true
-      hosts:
-        - host: my-app.example.com
-          paths:
-            - path: /
-              pathType: Prefix
+      image:
+        repository: jthegunner/my-php-app
+        tag: v1.0.0
+    postgresql:
+      enabled: true
+      auth:
+        database: myapp
+        username: myapp
+        password: changeme
 ```
 
-**📖 For complete Helm repository setup options (Git, HTTP, automated CI/CD), see [docs/HELM-REPOSITORY.md](docs/HELM-REPOSITORY.md)**
+## 📦 Konfiguration
 
-## 📚 Documentation
+### Runtime-Auswahl
 
-- **[Helm Repository Setup](docs/HELM-REPOSITORY.md)** - All deployment options (Local, Git, OCI, FluxCD)
-- **[Architecture Documentation](docs/ARCHITECTURE.md)** - Design decisions and patterns
-- **[Deployment Guide](docs/DEPLOYMENT.md)** - Comprehensive deployment instructions
-- **[PHP Chart README](charts/php-webapp/README.md)** - PHP-specific configuration
-- **[Node Chart README](charts/node-webapp/README.md)** - Node.js-specific configuration
-- **[Library Chart README](charts/common-webapp/README.md)** - Template reference
+| Parameter | Beschreibung | Default |
+|-----------|-------------|---------|
+| `php.enabled` | PHP Runtime aktivieren | `false` |
+| `nodejs.enabled` | Node.js Runtime aktivieren | `false` |
 
-## 🔑 Key Design Decisions
+### Datenbank
 
-### 1. Multi-Stage Docker Builds
+| Parameter | Beschreibung | Default |
+|-----------|-------------|---------|
+| `postgresql.enabled` | PostgreSQL Sub-Chart aktivieren | `false` |
+| `mariadb.enabled` | MariaDB Sub-Chart aktivieren | `false` |
 
-Assets are compiled **at Docker build-time**, not Kubernetes runtime:
+> **Hinweis:** Es kann nur eine Datenbank gleichzeitig aktiviert werden.
 
-✅ **Benefits:**
-- Faster pod startup (no npm install on each deployment)
-- Immutable artifacts (reproducible builds)
-- Smaller attack surface (build tools not in production)
+Die Datenbank-Verbindungsdaten werden automatisch als Environment-Variablen in alle aktivierten Runtimes injiziert:
+- `DB_CONNECTION` – Datenbanktyp (`pgsql` oder `mysql`)
+- `DB_HOST` – Hostname
+- `DB_PORT` – Port
+- `DB_DATABASE` – Datenbankname
+- `DB_USERNAME` – Benutzername
+- `DB_PASSWORD` – Passwort (aus Secret)
 
-❌ **Anti-Pattern (Avoided):**
+### PHP Konfiguration
+
+| Parameter | Beschreibung | Default |
+|-----------|-------------|---------|
+| `php.image.repository` | PHP Image | `""` |
+| `php.image.tag` | Image Tag | `latest` |
+| `php.replicaCount` | Anzahl Replicas | `1` |
+| `php.resources` | Resource Limits | `200m/256Mi` |
+| `php.nginx.image.tag` | Nginx Sidecar Version | `1.27-alpine` |
+| `php.ingress.enabled` | Ingress aktivieren | `false` |
+| `php.autoscaling.enabled` | HPA aktivieren | `false` |
+
+### Node.js Konfiguration
+
+| Parameter | Beschreibung | Default |
+|-----------|-------------|---------|
+| `nodejs.image.repository` | Node.js Image | `""` |
+| `nodejs.image.tag` | Image Tag | `latest` |
+| `nodejs.port` | Application Port | `3000` |
+| `nodejs.replicaCount` | Anzahl Replicas | `1` |
+| `nodejs.resources` | Resource Limits | `100m/128Mi` |
+| `nodejs.ingress.enabled` | Ingress aktivieren | `false` |
+| `nodejs.autoscaling.enabled` | HPA aktivieren | `false` |
+
+## 🔧 Verwendungsbeispiele
+
+### Nur PHP mit PostgreSQL
+
 ```yaml
-# DON'T do this
-initContainers:
-  - name: build-assets
-    command: ["npm", "install", "&&", "npm", "run", "build"]
-```
-
-### 2. Library Chart Pattern
-
-Reusable templates without complexity:
-- `common-webapp` provides shared templates
-- `php-webapp` and `node-webapp` consume them
-- No conditional hell in single "universal" chart
-
-### 3. PHP-FPM + Nginx Sidecar
-
-Production-grade PHP deployment:
-- PHP-FPM handles PHP processing (port 9000)
-- Nginx handles HTTP requests and static files (port 80)
-- Shared volume for application files
-
-## 🛡️ Security Features
-
-- **Non-root containers** - All containers run as UID 1000
-- **Capability dropping** - Minimal Linux capabilities
-- **Read-only root filesystem** (where applicable)
-- **Security headers** - X-Frame-Options, X-Content-Type-Options
-- **Resource limits** - CPU and memory constraints
-
-## 🔧 Configuration Examples
-
-### Horizontal Pod Autoscaling
-```yaml
-autoscaling:
+php:
   enabled: true
-  minReplicas: 2
-  maxReplicas: 10
-  targetCPUUtilizationPercentage: 70
-```
-
-### Custom Environment Variables
-```yaml
-phpFpm:  # or nodejs for Node.js apps
+  image:
+    repository: jthegunner/my-php-app
+    tag: "v1.0.0"
   env:
     - name: APP_ENV
       value: production
-    - name: DATABASE_URL
-      valueFrom:
-        secretKeyRef:
-          name: app-secrets
-          key: db-url
+
+postgresql:
+  enabled: true
+  auth:
+    username: "myapp"
+    password: "changeme"
+    database: "myapp"
 ```
 
-### Resource Limits
+### PHP + Node.js (Frontend + API)
+
 ```yaml
-phpFpm:
-  resources:
-    requests:
-      cpu: 250m
-      memory: 256Mi
-    limits:
-      cpu: 1000m
-      memory: 1Gi
+php:
+  enabled: true
+  image:
+    repository: jthegunner/my-frontend
+    tag: "v1.0.0"
+  ingress:
+    enabled: true
+    hosts:
+      - host: app.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+
+nodejs:
+  enabled: true
+  image:
+    repository: jthegunner/my-api
+    tag: "v2.0.0"
+  ingress:
+    enabled: true
+    hosts:
+      - host: api.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+
+postgresql:
+  enabled: true
+  auth:
+    database: myapp
+    username: myapp
+    password: changeme
 ```
+
+## 🛡️ Security Features
+
+- **Non-root Container** – Alle Container laufen als UID 1000
+- **Capability Dropping** – Minimale Linux Capabilities
+- **Security Headers** – X-Frame-Options, X-Content-Type-Options (PHP/Nginx)
+- **Resource Limits** – CPU und Memory Constraints
+- **ServiceAccount Token** – Automount deaktiviert
+
+## 📚 Dokumentation
+
+- **[Architektur](docs/ARCHITECTURE.md)** – Design-Entscheidungen
+- **[Deployment Guide](docs/DEPLOYMENT.md)** – Deployment-Anleitung
+- **[Helm Repository Setup](docs/HELM-REPOSITORY.md)** – Repository-Optionen
 
 ## 🤝 Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test with `helm lint` and `helm template`
-5. Submit a pull request
+1. Fork des Repositories
+2. Feature Branch erstellen
+3. Änderungen vornehmen
+4. Testen mit `helm lint` und `helm template`
+5. Pull Request erstellen
 
-## 📝 License
+## 📝 Lizenz
 
-MIT License - see LICENSE file for details
-
-## 🆘 Support
-
-For issues and questions:
-- Check [DEPLOYMENT.md](docs/DEPLOYMENT.md) for troubleshooting
-- Open an issue on GitHub
-- Contact DevOps team
+MIT License
 
 ---
 

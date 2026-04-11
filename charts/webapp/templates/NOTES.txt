@@ -1,0 +1,54 @@
+============================================================
+ 🚀 {{ include "webapp.fullname" . }} deployed!
+============================================================
+
+Aktivierte Runtimes:
+{{- if .Values.php.enabled }}
+  ✅ PHP ({{ include "webapp.php.image" . }})
+     Deployment: {{ include "webapp.fullname" . }}-php
+     Service:    {{ include "webapp.fullname" . }}-php:{{ .Values.php.service.port }}
+{{- end }}
+{{- if .Values.nodejs.enabled }}
+  ✅ Node.js ({{ include "webapp.nodejs.image" . }})
+     Deployment: {{ include "webapp.fullname" . }}-nodejs
+     Service:    {{ include "webapp.fullname" . }}-nodejs:{{ .Values.nodejs.service.port }}
+{{- end }}
+
+{{- if or .Values.postgresql.enabled .Values.mariadb.enabled }}
+
+Datenbank:
+{{- if .Values.postgresql.enabled }}
+  ✅ PostgreSQL
+     Host:     {{ .Release.Name }}-postgresql
+     Port:     5432
+     Database: {{ .Values.postgresql.auth.database }}
+     User:     {{ .Values.postgresql.auth.username }}
+{{- end }}
+{{- if .Values.mariadb.enabled }}
+  ✅ MariaDB
+     Host:     {{ .Release.Name }}-mariadb
+     Port:     3306
+     Database: {{ .Values.mariadb.auth.database }}
+     User:     {{ .Values.mariadb.auth.username }}
+{{- end }}
+{{- end }}
+
+{{- if and .Values.php.enabled .Values.php.ingress.enabled }}
+
+PHP Ingress:
+{{- range .Values.php.ingress.hosts }}
+  → http{{ if $.Values.php.ingress.tls }}s{{ end }}://{{ .host }}
+{{- end }}
+{{- end }}
+
+{{- if and .Values.nodejs.enabled .Values.nodejs.ingress.enabled }}
+
+Node.js Ingress:
+{{- range .Values.nodejs.ingress.hosts }}
+  → http{{ if $.Values.nodejs.ingress.tls }}s{{ end }}://{{ .host }}
+{{- end }}
+{{- end }}
+
+Nützliche Befehle:
+  kubectl get pods -l app.kubernetes.io/instance={{ .Release.Name }}
+  kubectl get svc -l app.kubernetes.io/instance={{ .Release.Name }}

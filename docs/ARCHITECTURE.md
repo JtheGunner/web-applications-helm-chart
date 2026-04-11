@@ -1,163 +1,138 @@
-# Architecture Documentation
+# Architektur-Dokumentation
 
-This document explains the architectural decisions behind the web applications Helm chart library system.
+Dieses Dokument erklärt die Architektur-Entscheidungen des Webapp Helm Charts.
 
-## Design Goals
+## Design-Ziele
 
-1. **DRY Principle** - Eliminate code duplication across application deployments
-2. **Production-Ready** - Security, performance, and reliability out of the box
-3. **FluxCD Integration** - GitOps-friendly with minimal configuration
-4. **Maintainability** - Easy to understand, debug, and extend
-5. **Best Practices** - Follow Kubernetes and Docker community standards
+1. **Ein Chart für alles** – Kein Wechsel zwischen Charts nötig
+2. **Flexibilität** – PHP, Node.js oder beides konfigurierbar
+3. **Datenbank-Integration** – PostgreSQL und MariaDB als Sub-Charts
+4. **Production-Ready** – Security, Performance und Reliability out of the box
+5. **FluxCD Integration** – GitOps-friendly mit minimaler Konfiguration
 
-## Architecture Decisions
+## Architektur-Entscheidungen
 
-### 1. Library Chart Pattern
+### 1. Einheitliches Chart statt Library Pattern
 
-**Decision:** Use Helm library charts instead of a single "universal" chart.
+**Entscheidung:** Ein einzelnes `webapp` Chart mit Feature-Toggles statt separater Charts.
 
-**Rationale:**
+**Begründung:**
 
-❌ **Anti-Pattern (Rejected):**
+Die Anforderung ist klar: Ein `helm install` soll reichen, um PHP und/oder Node.js mit optionaler Datenbank zu deployen. Das Library-Chart-Pattern (separate `php-webapp`, `node-webapp` Charts) erfordert mehrere Install-Befehle und macht die gemeinsame Datenbank-Nutzung umständlich.
+
+✅ **Lösung: Feature-Toggles**
 ```yaml
-# Single chart with conditional logic
-{{- if eq .Values.runtimeMode "php" }}
-  # 100 lines of PHP config
-{{- else if eq .Values.runtimeMode "node" }}
-  # 100 lines of Node config
-{{- end }}
+php:
+  enabled: true      # PHP aktivieren
+nodejs:
+  enabled: true      # Node.js aktivieren
+postgresql:
+  enabled: true      # PostgreSQL aktivieren
 ```
 
-**Problems:**
-- Template hell after adding 3-4 runtime modes
-- Difficult to debug (which branch executed?)
-- Hard to maintain and test
-- Poor developer experience
+**Vorteile:**
+- Ein einziger `helm install` für alles
+- Gemeinsame Datenbank-Konfiguration
+- Einfaches FluxCD HelmRelease
+- Übersichtliche Values-Struktur
 
-✅ **Solution: Library Chart Pattern**
+**Warum kein "Conditional Hell"?**
+- Nur 2 Runtime-Typen (PHP + Node) – überschaubar
+- Die Templates sind getrennt (`deployment-php.yaml`, `deployment-node.yaml`)
+- Jede Datei hat nur ein `{{- if .Values.xxx.enabled }}` am Anfang
+- Keine verschachtelten Conditionals
+
+### 2. Separate Deployments pro Runtime
+
+**Entscheidung:** PHP und Node.js laufen als separate Kubernetes Deployments.
 
 ```
-common-webapp (library) ─┬─> php-webapp (concrete)
-                         ├─> node-webapp (concrete)
-                         └─> python-webapp (future)
+helm install my-app charts/webapp
+  │
+  ├─ Deployment: my-app-webapp-php
+  │   ├─ Container: php-fpm (Port 9000)
+  │   └─ Container: nginx (Port 80)
+  │
+  ├─ Deployment: my-app-webapp-nodejs
+  │   └─ Container: nodejs (Port 3000)
+  │
+  ├─ Service: my-app-webapp-php (Port 80)
+  ├─ Service: my-app-webapp-nodejs (Port 80)
+  │
+  └─ StatefulSet: my-app-postgresql (via Sub-Chart)
 ```
 
-**Benefits:**
-- Each chart remains simple and focused
-- Code reuse through library templates
-- Easy to add new runtime types
-- Industry standard (used by Bitnami, Gitlab, etc.)
+**Vorteile:**
+- Unabhängige Skalierung (PHP und Node haben eigene HPAs)
+- Separate Resource Limits
+- Getrennte Rollouts (PHP aktualisieren ohne Node neu zu starten)
+- Separate Health Checks
 
-### 2. Multi-Stage Docker Builds
+### 3. Datenbank als Bitnami Sub-Chart
 
-**Decision:** Build assets at Docker build-time, not Kubernetes runtime.
+**Entscheidung:** PostgreSQL und MariaDB werden als Bitnami Sub-Charts eingebunden.
 
-**Rationale:**
+**Begründung:**
+- Bitnami Charts sind battle-tested und weit verbreitet
+- Automatic Secret-Erstellung für Credentials
+- Persistence out of the box
+- Helm-native Lifecycle Management
 
-❌ **Anti-Pattern (InitContainers):**
+**Automatische Env-Var-Injection:**
+
+Bei aktivierter Datenbank werden folgende Environment-Variablen automatisch in alle Runtime-Container injiziert:
+
 ```yaml
-initContainers:
-  - name: build-assets
-    command: ["npm", "install", "&&", "npm", "run", "build"]
+DB_CONNECTION: "pgsql"          # oder "mysql"
+DB_HOST: "release-postgresql"   # aus Sub-Chart
+DB_PORT: "5432"                 # oder "3306"
+DB_DATABASE: "webapp"           # aus Values
+DB_USERNAME: "webapp"           # aus Values
+DB_PASSWORD: <secret>           # aus Bitnami Secret
 ```
 
-**Problems:**
-- Assets rebuilt on **every pod start** (scaling, crashes, updates)
-- Slow pod startup (minutes instead of seconds)
-- Wasted resources (CPU/memory for NPM during runtime)
-- Non-reproducible builds (network issues, version changes)
-- Security risk (build tools in production cluster)
+### 4. PHP-FPM + Nginx Sidecar
 
-✅ **Solution: Multi-Stage Builds**
+**Entscheidung:** Sidecar-Pattern für PHP-Applikationen.
 
-```dockerfile
-# Stage 1: Build assets
-FROM node:20-alpine AS builder
-RUN npm install && npm run build
-
-# Stage 2: Production
-FROM php:8.2-fpm-alpine
-COPY --from=builder /build/public/dist ./public/dist
-```
-
-**Benefits:**
-- Assets compiled once, reused forever
-- Fast pod startup (seconds)
-- Immutable artifacts (reproducible)
-- Smaller production images (no Node.js/NPM)
-- Build failures caught before deployment
-
-### 3. PHP-FPM + Nginx Sidecar
-
-**Decision:** Use sidecar pattern for PHP applications.
-
-**Rationale:**
-
-PHP-FPM (FastCGI) cannot serve HTTP directly. Options:
-
-**Option A: PHP Built-in Server**
-```yaml
-command: ["php", "-S", "0.0.0.0:8000"]
-```
-❌ Single-threaded, not production-ready
-
-**Option B: Apache + mod_php**
-❌ Heavyweight, difficult to configure
-
-**Option C: PHP-FPM + Nginx (Sidecar)** ✅
+PHP-FPM (FastCGI) kann kein HTTP direkt ausliefern. Die Lösung:
 
 ```yaml
 containers:
-  - name: php-fpm      # Port 9000
-  - name: nginx        # Port 80 (proxies to PHP-FPM)
+  - name: php-fpm      # Port 9000 (FastCGI)
+  - name: nginx        # Port 80 (HTTP → FastCGI Proxy)
 ```
 
-**Benefits:**
-- Production-grade performance
-- Separate resource limits
-- Nginx handles static files efficiently
-- Industry standard
-- Security headers and rate limiting
+**Vorteile:**
+- Production-grade Performance
+- Nginx serviert statische Dateien effizient
+- Separate Resource Limits
+- Security Headers in Nginx
 
-### 4. Separate Images per Runtime
+### 5. Per-Runtime Ingress
 
-**Decision:** No "fat images" containing PHP + Node + Composer.
+**Entscheidung:** Jede Runtime hat ihre eigene Ingress-Konfiguration.
 
-**Rationale:**
-
-❌ **Fat Image Problems:**
-```dockerfile
-FROM ubuntu
-RUN apt-get install php nodejs composer npm
-# Result: 2GB image with huge attack surface
+```yaml
+php:
+  ingress:
+    hosts:
+      - host: app.example.com     # Frontend
+nodejs:
+  ingress:
+    hosts:
+      - host: api.example.com     # API
 ```
 
-- Massive images (slow pulls)
-- Security vulnerabilities (unnecessary tools)
-- Violates "one concern per container"
-- Difficult to maintain
+Dies ermöglicht:
+- Verschiedene Hostnamen pro Runtime
+- Pfad-basiertes Routing auf dem gleichen Host
+- Separate TLS-Zertifikate
+- Runtime-spezifische Ingress-Annotations
 
-✅ **Solution: Lean, Focused Images**
+### 6. Security Defaults
 
-```dockerfile
-# PHP Image
-FROM php:8.2-fpm-alpine  # ~80MB
-
-# Node Image
-FROM node:20-alpine      # ~120MB
-```
-
-**Benefits:**
-- Smaller attack surface
-- Faster deployments
-- Clear separation of concerns
-- Easier security updates
-
-### 5. Security Context Defaults
-
-**Decision:** Enforce security contexts by default.
-
-**Implementation:**
+**Container Security:**
 ```yaml
 securityContext:
   runAsNonRoot: true
@@ -167,187 +142,60 @@ securityContext:
     drop: ["ALL"]
 ```
 
-**Rationale:**
-- Prevents container breakout attacks
-- Follows least-privilege principle
-- Complies with Pod Security Standards
-- Required for many enterprise environments
+**ServiceAccount:**
+```yaml
+automountServiceAccountToken: false
+```
 
-## Component Interactions
+## Component Flow
 
-### PHP Application Flow
+### PHP + Node.js + PostgreSQL
 
 ```
 User Request
     ↓
-Ingress (TLS termination)
-    ↓
-Service (port 80)
-    ↓
-Pod
-  ├─ Nginx Container (port 80)
-  │    ├─ Serves static files
-  │    └─ Proxies *.php to PHP-FPM
-  │
-  └─ PHP-FPM Container (port 9000)
-       └─ Executes PHP code
+Ingress (TLS)
+    ├─ app.example.com → Service php (Port 80)
+    │                       ↓
+    │                    Pod (PHP)
+    │                    ├─ Nginx (Port 80)
+    │                    └─ PHP-FPM (Port 9000) ──→ PostgreSQL
+    │
+    └─ api.example.com → Service nodejs (Port 80)
+                            ↓
+                         Pod (Node.js)
+                         └─ Node (Port 3000) ──→ PostgreSQL
 ```
 
-### Node.js Application Flow
+## Validierung
 
-```
-User Request
-    ↓
-Ingress (TLS termination)
-    ↓
-Service (port 80)
-    ↓
-Pod
-  └─ Node.js Container (port 3000)
-       └─ Express.js handles request
-```
-
-## Resource Architecture
-
-### Shared Resources (Library Chart)
-
-- **Labels and Selectors** - Consistent across all apps
-- **Ingress Templates** - TLS, annotations, hosts
-- **Service Templates** - ClusterIP, port mapping
-- **Security Contexts** - Non-root, capabilities
-
-### Runtime-Specific Resources
-
-**PHP Chart:**
-- PHP-FPM deployment
-- Nginx ConfigMap
-- Sidecar container management
-
-**Node Chart:**
-- Single-container deployment
-- Environment configuration
-- Command overrides
-
-## Scalability Considerations
-
-### Horizontal Scaling
-
-Both charts support Horizontal Pod Autoscaler (HPA):
-
-```yaml
-autoscaling:
-  enabled: true
-  minReplicas: 2
-  maxReplicas: 20
-  targetCPUUtilizationPercentage: 70
-```
-
-**Stateless Design:**
-- No local state (files, sessions)
-- External databases for persistence
-- Shared caching (Redis, Memcached)
-
-### Vertical Scaling
-
-Resource limits per container:
-
-```yaml
-resources:
-  requests:
-    cpu: 250m      # Guaranteed
-    memory: 256Mi
-  limits:
-    cpu: 1000m     # Maximum
-    memory: 1Gi
-```
-
-## GitOps Integration (FluxCD)
-
-### Repository Structure
-
-```
-flux-config/
-├── infrastructure/
-│   └── helmrepositories/
-│       └── web-apps.yaml
-│
-└── applications/
-    ├── production/
-    │   ├── app1-release.yaml
-    │   └── app2-release.yaml
-    └── staging/
-        └── app1-release.yaml
-```
-
-### Update Flow
-
-```
-Developer pushes code
-    ↓
-CI builds Docker image
-    ↓
-CI updates HelmRelease (tag: v1.2.3)
-    ↓
-FluxCD detects change
-    ↓
-FluxCD applies HelmRelease
-    ↓
-Kubernetes rolling update
-```
-
-## Testing Strategy
-
-### Chart Validation
+Das Chart validiert die Eingaben:
+- Mindestens eine Runtime muss aktiviert sein (`php.enabled` oder `nodejs.enabled`)
+- Nur eine Datenbank kann gleichzeitig aktiviert werden
 
 ```bash
-# Syntax validation
-helm lint charts/php-webapp
+# Ohne Runtime → Fehler
+helm template test charts/webapp
+# FEHLER: Mindestens eine Runtime muss aktiviert sein.
 
-# Template rendering
-helm template test charts/php-webapp > /tmp/rendered.yaml
-
-# Dry-run install
-helm install test charts/php-webapp --dry-run
+# Beide DBs → Fehler
+helm template test charts/webapp --set php.enabled=true --set postgresql.enabled=true --set mariadb.enabled=true
+# FEHLER: Nur eine Datenbank kann gleichzeitig aktiviert werden.
 ```
 
-### Docker Build Validation
+## Testing
 
 ```bash
-# Build image
-docker build -t test:latest examples/php-app/
+# Lint
+helm lint charts/webapp --set php.enabled=true
 
-# Security scan
-docker scan test:latest
+# Template rendern
+helm template test charts/webapp --set php.enabled=true --set php.image.repository=test
 
-# Size check
-docker images test:latest
+# Dry-Run
+helm install test charts/webapp --dry-run --set php.enabled=true --set php.image.repository=test
 ```
-
-## Future Extensions
-
-### Potential Additions
-
-1. **Python WebApp Chart** - Django, Flask applications
-2. **Static Site Chart** - Nginx-only for SPAs
-3. **Database Subchart** - Optional PostgreSQL/MySQL
-4. **Monitoring Integration** - ServiceMonitor for Prometheus
-5. **Network Policies** - Pod-to-pod traffic rules
-
-### Extension Pattern
-
-New charts should:
-1. Depend on `common-webapp` library
-2. Provide runtime-specific `values.yaml`
-3. Include multi-stage Dockerfile example
-4. Document health check requirements
-
-## References
-
-- [Helm Library Charts](https://helm.sh/docs/topics/library_charts/)
-- [Multi-Stage Docker Builds](https://docs.docker.com/build/building/multi-stage/)
-- [Kubernetes Pod Security Standards](https://kubernetes.io/docs/concepts/security/pod-security-standards/)
-- [FluxCD HelmRelease](https://fluxcd.io/docs/components/helm/)
 
 ---
 
-**Last Updated:** 2025-12-07
+**Last Updated:** 2026-04-11

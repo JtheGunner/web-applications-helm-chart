@@ -1,0 +1,12 @@
+{{/*
+Validation: Ensure at least one runtime is enabled.
+This template is included to trigger a fail at render time if neither
+php nor nodejs is activated.
+*/}}
+{{- if and (not .Values.php.enabled) (not .Values.nodejs.enabled) }}
+{{- fail "FEHLER: Mindestens eine Runtime muss aktiviert sein. Setze php.enabled=true und/oder nodejs.enabled=true." }}
+{{- end }}
+
+{{- if and .Values.postgresql.enabled .Values.mariadb.enabled }}
+{{- fail "FEHLER: Nur eine Datenbank kann gleichzeitig aktiviert werden. Setze entweder postgresql.enabled=true ODER mariadb.enabled=true." }}
+{{- end }}
