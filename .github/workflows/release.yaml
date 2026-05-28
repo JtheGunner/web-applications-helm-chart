@@ -1,0 +1,38 @@
+name: Release Helm Chart to GHCR
+
+on:
+  push:
+    branches:
+      - main  # Oder dein Standard-Branch
+    paths:
+      - 'Chart.yaml' # Trigger, wenn sich das Chart ändert
+  workflow_dispatch: # Erlaubt manuelles Triggern
+
+jobs:
+  release:
+    permissions:
+      contents: read
+      packages: write # Zwingend erforderlich für GHCR-Push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Log in to GHCR
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Package and Push Helm Chart
+        run: |
+          # Paketiert das Chart (sucht im aktuellen Verzeichnis nach Chart.yaml)
+          helm package .
+          
+          # Liest Name und Version dynamisch aus, um das .tgz File zu finden
+          CHART_NAME=$(yq '.name' Chart.yaml)
+          CHART_VERSION=$(yq '.version' Chart.yaml)
+          
+          # Push in die Registry unter die Organisation/User
+          helm push "${CHART_NAME}-${CHART_VERSION}.tgz" oci://ghcr.io/${{ github.repository_owner }}/helm-charts
