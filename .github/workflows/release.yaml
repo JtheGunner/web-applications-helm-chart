@@ -8,11 +8,6 @@ on:
       - 'charts/webapp/**'
   workflow_dispatch:
 
-env:
-  # Erzwingt Node.js 24 für Actions, die noch v20 bündeln (z. B. azure/setup-helm@v4).
-  # Siehe: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-
 jobs:
   release:
     permissions:
@@ -24,7 +19,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Install Helm
-        uses: azure/setup-helm@v4
+        uses: azure/setup-helm@v5
 
       - name: Log in to GHCR
         run: |
