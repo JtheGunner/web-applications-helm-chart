@@ -1,0 +1,79 @@
+# =============================================================================
+# Beispiel: PHP-App direkt aus einem Git-Repo deployen
+# =============================================================================
+# Klont das Portfolio-Repo zur Pod-Startzeit, läuft composer install im
+# Runtime-Image und serviert es mit PHP-FPM + Nginx.
+#
+# Deployment: helm install portfolio charts/webapp -f examples/git-source-portfolio.yaml
+#
+# Privates Repo: vorher SSH-Secret anlegen:
+#   kubectl create secret generic portfolio-ssh \
+#     --from-file=ssh-privatekey=$HOME/.ssh/id_ed25519 \
+#     --from-file=known_hosts=$HOME/.ssh/known_hosts
+# =============================================================================
+
+php:
+  enabled: true
+
+  # Runtime-Image: PHP-FPM für die Request-Verarbeitung.
+  # Das offizielle Image hat composer NICHT vorinstalliert – deshalb läuft der
+  # Build-Schritt unten in einem separaten composer-Image.
+  image:
+    repository: php
+    tag: "8.3-fpm-alpine"
+    pullPolicy: IfNotPresent
+
+  replicaCount: 1
+
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+  app:
+    source: git
+
+    git:
+      url: https://github.com/JtheGunner/portfolio
+      ref: master           # Branch, Tag, oder Commit-SHA
+      depth: 1              # shallow clone reicht für Branch/Tag
+      # Für privates Repo per SSH:
+      # url: git@github.com:JtheGunner/portfolio.git
+      # sshSecret:
+      #   name: portfolio-ssh
+
+    # composer install nach dem Klonen, im offiziellen Composer-Image.
+    build:
+      enabled: true
+      image:
+        repository: composer
+        tag: "2-php8.3"
+        pullPolicy: IfNotPresent
+      command: "composer install --no-dev --optimize-autoloader --no-interaction"
+      resources:
+        limits:
+          cpu: 1000m
+          memory: 1Gi
+
+  # Env-Vars für die App (überschreiben die .env aus dem Repo).
+  env:
+    - name: APP_ENV
+      value: production
+
+  ingress:
+    enabled: true
+    className: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+    hosts:
+      - host: portfolio.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: portfolio-tls
+        hosts:
+          - portfolio.example.com

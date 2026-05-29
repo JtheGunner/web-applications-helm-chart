@@ -56,9 +56,16 @@ spec:
           configMap:
             name: {{ include "webapp.php.configMapName" . }}
         {{- end }}
+        {{- if and (eq .Values.php.app.source "git") .Values.php.app.git.sshSecret.name }}
+        - name: git-ssh
+          secret:
+            secretName: {{ .Values.php.app.git.sshSecret.name }}
+            defaultMode: 256  # 0400
+        {{- end }}
 
-      {{- if .Values.php.initContainer.enabled }}
       initContainers:
+        {{- if eq .Values.php.app.source "image" }}
+        # Code aus dem Runtime-Image in das geteilte Volume kopieren.
         - name: copy-app
           image: "{{ include "webapp.php.image" . }}"
           imagePullPolicy: {{ include "webapp.php.imagePullPolicy" . }}
@@ -69,13 +76,99 @@ spec:
             - -c
             - |
               set -e
-              if [ -d "{{ .Values.php.initContainer.sourceDir }}" ]; then
-                cp -aR {{ .Values.php.initContainer.sourceDir }}/. /app-files/
+              if [ -d "{{ .Values.php.app.imageSourceDir }}" ]; then
+                cp -aR {{ .Values.php.app.imageSourceDir }}/. /app-files/
               fi
           volumeMounts:
             - name: app-files
               mountPath: /app-files
-      {{- end }}
+        {{- else if eq .Values.php.app.source "git" }}
+        # Repo zur Pod-Startzeit ins geteilte Volume klonen.
+        - name: git-clone
+          image: "{{ .Values.php.app.git.image.repository }}:{{ .Values.php.app.git.image.tag }}"
+          imagePullPolicy: {{ .Values.php.app.git.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: false
+            seccompProfile:
+              type: RuntimeDefault
+          {{- if .Values.php.app.git.sshSecret.name }}
+          env:
+            - name: GIT_SSH_COMMAND
+              value: "ssh -i /tmp/.ssh/id -o UserKnownHostsFile=/tmp/.ssh/known_hosts -o StrictHostKeyChecking=accept-new"
+          {{- end }}
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              {{- if .Values.php.app.git.sshSecret.name }}
+              mkdir -p /tmp/.ssh
+              cp /etc/git-ssh/{{ .Values.php.app.git.sshSecret.privateKeyKey }} /tmp/.ssh/id
+              chmod 600 /tmp/.ssh/id
+              if [ -f /etc/git-ssh/{{ .Values.php.app.git.sshSecret.knownHostsKey }} ]; then
+                cp /etc/git-ssh/{{ .Values.php.app.git.sshSecret.knownHostsKey }} /tmp/.ssh/known_hosts
+              else
+                touch /tmp/.ssh/known_hosts
+              fi
+              {{- end }}
+              # Re-Clone-sicher: Ziel leeren (auch versteckte Dateien).
+              find /app-files -mindepth 1 -delete
+              {{- if eq (int (.Values.php.app.git.depth | default 1)) 0 }}
+              git clone {{ .Values.php.app.git.url }} /tmp/repo
+              cd /tmp/repo
+              git -c advice.detachedHead=false checkout {{ .Values.php.app.git.ref | default "main" }}
+              {{- else }}
+              git clone --depth {{ .Values.php.app.git.depth }} --branch {{ .Values.php.app.git.ref | default "main" }} --single-branch {{ .Values.php.app.git.url }} /tmp/repo
+              {{- end }}
+              {{- if .Values.php.app.git.subPath }}
+              cp -aR /tmp/repo/{{ .Values.php.app.git.subPath }}/. /app-files/
+              {{- else }}
+              cp -aR /tmp/repo/. /app-files/
+              {{- end }}
+          volumeMounts:
+            - name: app-files
+              mountPath: /app-files
+            {{- if .Values.php.app.git.sshSecret.name }}
+            - name: git-ssh
+              mountPath: /etc/git-ssh
+              readOnly: true
+            {{- end }}
+          resources:
+            {{- toYaml .Values.php.app.git.resources | nindent 12 }}
+        {{- if .Values.php.app.build.enabled }}
+        # Build-Schritt (composer install etc.) im Runtime- oder Build-Image.
+        - name: app-build
+          image: {{ if .Values.php.app.build.image.repository -}}
+                   "{{ .Values.php.app.build.image.repository }}:{{ .Values.php.app.build.image.tag }}"
+                 {{- else -}}
+                   "{{ include "webapp.php.image" . }}"
+                 {{- end }}
+          imagePullPolicy: {{ if .Values.php.app.build.image.repository -}}
+                             {{ .Values.php.app.build.image.pullPolicy }}
+                           {{- else -}}
+                             {{ include "webapp.php.imagePullPolicy" . }}
+                           {{- end }}
+          securityContext:
+            {{- toYaml .Values.php.securityContext | nindent 12 }}
+          workingDir: /var/www/html
+          {{- with .Values.php.app.build.env }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          command:
+            - sh
+            - -c
+            - {{ .Values.php.app.build.command | quote }}
+          volumeMounts:
+            - name: app-files
+              mountPath: /var/www/html
+          resources:
+            {{- toYaml .Values.php.app.build.resources | nindent 12 }}
+        {{- end }}
+        {{- end }}
 
       containers:
         # ---- PHP-FPM Container ----

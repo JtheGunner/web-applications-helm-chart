@@ -130,7 +130,53 @@ Dies ermöglicht:
 - Separate TLS-Zertifikate
 - Runtime-spezifische Ingress-Annotations
 
-### 6. Security Defaults
+### 6. App-Source: Image vs. Git (Runtime-Clone)
+
+**Entscheidung:** Per Runtime konfigurierbar, ob der App-Code aus dem
+Container-Image kommt (Default) oder zur Pod-Startzeit aus einem Git-Repo
+geklont wird.
+
+```yaml
+php:
+  app:
+    source: image   # Default: Code aus dem Runtime-Image
+    # source: git   # Alternative: zur Laufzeit aus Git
+```
+
+**Warum überhaupt Git-Source?**
+
+Mehrere kleine Webapps von einem einzigen Chart deployen, ohne pro App
+eine eigene Build-Pipeline pflegen zu müssen. `git push` + Pod-Restart
+genügen. Vor allem für interne/persönliche Apps interessant.
+
+**Wie es funktioniert (source=git):**
+
+1. Volume `app-files` (emptyDir) wird angelegt und in PHP-FPM, Nginx
+   und – falls vorhanden – Build-Container gemountet.
+2. Init-Container **`git-clone`** (Image: `alpine/git`) klont das Repo
+   nach `/app-files`. Für privates Repo: SSH-Key aus einem K8s-Secret.
+3. Optionaler Init-Container **`app-build`** läuft im Runtime-Image
+   (oder einem konfigurierbaren Build-Image, z. B. `composer:2-php8.3`)
+   und führt `composer install`, `npm ci`, etc. aus.
+4. Runtime-Container (PHP-FPM, Nginx, Node) starten mit fertig
+   vorbereiteten Files.
+
+**Trade-offs:**
+
+| | source=image | source=git |
+|---|---|---|
+| Pod-Start | Sekunden | 10–60 s je nach Repo + Build |
+| Reproduzierbarkeit | Immutable Image-Tag | `git.ref` auf SHA pinnen |
+| Build-Pipeline | Pro App nötig | Nicht nötig |
+| Build-Fehler-Sichtbarkeit | In CI | Erst beim Deploy |
+| Geeignet für | Production, Skalierung | Dev, persönliche Apps, viele kleine Services |
+
+**Empfehlung:** `source=image` für alles mit echtem Traffic, `source=git`
+für Convenience-Deployments. Bei Git-Mode `git.ref` auf einen Tag oder
+SHA pinnen, nicht `main` – sonst wird bei jedem Pod-Restart der aktuelle
+Branch-Head gezogen.
+
+### 7. Security Defaults
 
 **Container Security (PHP-FPM):**
 ```yaml

@@ -74,13 +74,73 @@ php:
     #   pm.max_children = 50
     #   pm.start_servers = 5
 
-  # Init-Container, der den Applikations-Code aus dem PHP-Image in das
-  # gemeinsame emptyDir-Volume kopiert. Notwendig, weil sich PHP-FPM und Nginx
-  # /var/www/html teilen.
-  initContainer:
-    enabled: true
-    # Quellpfad innerhalb des PHP-Images. Inhalt wird nach /app-files kopiert.
-    sourceDir: /var/www/html
+  # Applikations-Code-Quelle
+  app:
+    # "image": Code kommt aus dem PHP-Runtime-Image (Default).
+    #          Ein Init-Container kopiert /var/www/html aus dem Image in das
+    #          geteilte app-files Volume (das PHP-FPM und Nginx beide mounten).
+    # "git":   Code wird zur Pod-Start-Zeit aus einem Git-Repo geklont.
+    #          Optional läuft danach ein Build-Schritt (composer install, etc.).
+    source: image
+
+    # Nur relevant bei source=image. Pfad innerhalb des PHP-Images, dessen
+    # Inhalt nach /var/www/html kopiert wird.
+    imageSourceDir: /var/www/html
+
+    # Nur relevant bei source=git.
+    git:
+      image:
+        repository: alpine/git
+        tag: latest
+        pullPolicy: IfNotPresent
+      # Repo-URL (HTTPS für öffentliche Repos, SSH für privat).
+      url: ""
+      # Branch, Tag oder voller Commit-SHA.
+      ref: main
+      # 0 = full clone (notwendig für Checkout per SHA),
+      # >0 = shallow clone --depth N (schneller, nur für Branch/Tag).
+      depth: 1
+      # Optional: nur diesen Unterordner als App-Root verwenden.
+      subPath: ""
+      # Privater Repo-Zugriff per SSH-Key aus einem Secret.
+      # Beispiel-Secret:
+      #   kubectl create secret generic portfolio-ssh \
+      #     --from-file=ssh-privatekey=$HOME/.ssh/id_ed25519 \
+      #     --from-file=known_hosts=$HOME/.ssh/known_hosts
+      sshSecret:
+        name: ""
+        privateKeyKey: ssh-privatekey
+        knownHostsKey: known_hosts
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 500m
+          memory: 256Mi
+
+    # Optionaler Build-Schritt NACH git-clone (composer install etc.).
+    # Läuft per Default im Runtime-Image (PHP-FPM); kann via build.image
+    # auf ein anderes Image (z. B. composer:latest) gezogen werden.
+    build:
+      enabled: false
+      # Falls leer: Runtime-Image (php.image) wird verwendet.
+      image:
+        repository: ""
+        tag: ""
+        pullPolicy: IfNotPresent
+      # Wird in sh -c "..." ausgeführt; CWD = /var/www/html.
+      command: ""
+        # Beispiel:
+        # command: "composer install --no-dev --optimize-autoloader --no-interaction"
+      env: []
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: 1000m
+          memory: 1Gi
 
   nginx:
     image:
@@ -239,6 +299,58 @@ nodejs:
       value: production
 
   envFrom: []
+
+  # Applikations-Code-Quelle (analog zu php.app).
+  app:
+    # "image": Code kommt aus dem Node-Runtime-Image (Default, kein Init-Container,
+    #          Container läuft direkt aus dem Image-Filesystem).
+    # "git":   Code wird zur Pod-Start-Zeit aus einem Git-Repo geklont.
+    #          Erzeugt ein zusätzliches emptyDir-Volume, das auf workingDir gemountet
+    #          und als CWD verwendet wird. Optional folgt ein npm-install-Schritt.
+    source: image
+
+    # Nur relevant bei source=git: hier wird das Repo gemountet und CWD gesetzt.
+    workingDir: /app
+
+    git:
+      image:
+        repository: alpine/git
+        tag: latest
+        pullPolicy: IfNotPresent
+      url: ""
+      ref: main
+      depth: 1
+      subPath: ""
+      sshSecret:
+        name: ""
+        privateKeyKey: ssh-privatekey
+        knownHostsKey: known_hosts
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 500m
+          memory: 256Mi
+
+    build:
+      enabled: false
+      image:
+        repository: ""
+        tag: ""
+        pullPolicy: IfNotPresent
+      # CWD = nodejs.app.workingDir.
+      command: ""
+        # Beispiel:
+        # command: "npm ci --omit=dev"
+      env: []
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: 1000m
+          memory: 1Gi
 
   service:
     type: ClusterIP

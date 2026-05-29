@@ -10,3 +10,30 @@ php nor nodejs is activated.
 {{- if and .Values.postgresql.enabled .Values.mariadb.enabled }}
 {{- fail "FEHLER: Nur eine Datenbank kann gleichzeitig aktiviert werden. Setze entweder postgresql.enabled=true ODER mariadb.enabled=true." }}
 {{- end }}
+
+{{/* app.source muss gültig sein und git-URL setzen, wenn source=git */}}
+{{- if .Values.php.enabled }}
+{{- $src := .Values.php.app.source }}
+{{- if not (or (eq $src "image") (eq $src "git")) }}
+{{- fail (printf "FEHLER: php.app.source muss \"image\" oder \"git\" sein (aktuell: %q)." $src) }}
+{{- end }}
+{{- if and (eq $src "git") (not .Values.php.app.git.url) }}
+{{- fail "FEHLER: php.app.git.url ist erforderlich, wenn php.app.source=git." }}
+{{- end }}
+{{- if and .Values.php.app.build.enabled (not .Values.php.app.build.command) }}
+{{- fail "FEHLER: php.app.build.command ist erforderlich, wenn php.app.build.enabled=true." }}
+{{- end }}
+{{- end }}
+
+{{- if .Values.nodejs.enabled }}
+{{- $src := .Values.nodejs.app.source }}
+{{- if not (or (eq $src "image") (eq $src "git")) }}
+{{- fail (printf "FEHLER: nodejs.app.source muss \"image\" oder \"git\" sein (aktuell: %q)." $src) }}
+{{- end }}
+{{- if and (eq $src "git") (not .Values.nodejs.app.git.url) }}
+{{- fail "FEHLER: nodejs.app.git.url ist erforderlich, wenn nodejs.app.source=git." }}
+{{- end }}
+{{- if and .Values.nodejs.app.build.enabled (not .Values.nodejs.app.build.command) }}
+{{- fail "FEHLER: nodejs.app.build.command ist erforderlich, wenn nodejs.app.build.enabled=true." }}
+{{- end }}
+{{- end }}

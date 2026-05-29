@@ -35,6 +35,102 @@ spec:
       securityContext:
         {{- toYaml .Values.nodejs.podSecurityContext | nindent 8 }}
 
+      {{- if eq .Values.nodejs.app.source "git" }}
+      volumes:
+        - name: app-files
+          emptyDir: {}
+        {{- if .Values.nodejs.app.git.sshSecret.name }}
+        - name: git-ssh
+          secret:
+            secretName: {{ .Values.nodejs.app.git.sshSecret.name }}
+            defaultMode: 256  # 0400
+        {{- end }}
+
+      initContainers:
+        - name: git-clone
+          image: "{{ .Values.nodejs.app.git.image.repository }}:{{ .Values.nodejs.app.git.image.tag }}"
+          imagePullPolicy: {{ .Values.nodejs.app.git.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: false
+            seccompProfile:
+              type: RuntimeDefault
+          {{- if .Values.nodejs.app.git.sshSecret.name }}
+          env:
+            - name: GIT_SSH_COMMAND
+              value: "ssh -i /tmp/.ssh/id -o UserKnownHostsFile=/tmp/.ssh/known_hosts -o StrictHostKeyChecking=accept-new"
+          {{- end }}
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              {{- if .Values.nodejs.app.git.sshSecret.name }}
+              mkdir -p /tmp/.ssh
+              cp /etc/git-ssh/{{ .Values.nodejs.app.git.sshSecret.privateKeyKey }} /tmp/.ssh/id
+              chmod 600 /tmp/.ssh/id
+              if [ -f /etc/git-ssh/{{ .Values.nodejs.app.git.sshSecret.knownHostsKey }} ]; then
+                cp /etc/git-ssh/{{ .Values.nodejs.app.git.sshSecret.knownHostsKey }} /tmp/.ssh/known_hosts
+              else
+                touch /tmp/.ssh/known_hosts
+              fi
+              {{- end }}
+              find /app-files -mindepth 1 -delete
+              {{- if eq (int (.Values.nodejs.app.git.depth | default 1)) 0 }}
+              git clone {{ .Values.nodejs.app.git.url }} /tmp/repo
+              cd /tmp/repo
+              git -c advice.detachedHead=false checkout {{ .Values.nodejs.app.git.ref | default "main" }}
+              {{- else }}
+              git clone --depth {{ .Values.nodejs.app.git.depth }} --branch {{ .Values.nodejs.app.git.ref | default "main" }} --single-branch {{ .Values.nodejs.app.git.url }} /tmp/repo
+              {{- end }}
+              {{- if .Values.nodejs.app.git.subPath }}
+              cp -aR /tmp/repo/{{ .Values.nodejs.app.git.subPath }}/. /app-files/
+              {{- else }}
+              cp -aR /tmp/repo/. /app-files/
+              {{- end }}
+          volumeMounts:
+            - name: app-files
+              mountPath: /app-files
+            {{- if .Values.nodejs.app.git.sshSecret.name }}
+            - name: git-ssh
+              mountPath: /etc/git-ssh
+              readOnly: true
+            {{- end }}
+          resources:
+            {{- toYaml .Values.nodejs.app.git.resources | nindent 12 }}
+        {{- if .Values.nodejs.app.build.enabled }}
+        - name: app-build
+          image: {{ if .Values.nodejs.app.build.image.repository -}}
+                   "{{ .Values.nodejs.app.build.image.repository }}:{{ .Values.nodejs.app.build.image.tag }}"
+                 {{- else -}}
+                   "{{ include "webapp.nodejs.image" . }}"
+                 {{- end }}
+          imagePullPolicy: {{ if .Values.nodejs.app.build.image.repository -}}
+                             {{ .Values.nodejs.app.build.image.pullPolicy }}
+                           {{- else -}}
+                             {{ include "webapp.nodejs.imagePullPolicy" . }}
+                           {{- end }}
+          securityContext:
+            {{- toYaml .Values.nodejs.securityContext | nindent 12 }}
+          workingDir: {{ .Values.nodejs.app.workingDir }}
+          {{- with .Values.nodejs.app.build.env }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          command:
+            - sh
+            - -c
+            - {{ .Values.nodejs.app.build.command | quote }}
+          volumeMounts:
+            - name: app-files
+              mountPath: {{ .Values.nodejs.app.workingDir }}
+          resources:
+            {{- toYaml .Values.nodejs.app.build.resources | nindent 12 }}
+        {{- end }}
+      {{- end }}
+
       containers:
         - name: nodejs
           image: "{{ include "webapp.nodejs.image" . }}"
@@ -42,6 +138,10 @@ spec:
 
           securityContext:
             {{- toYaml .Values.nodejs.securityContext | nindent 12 }}
+
+          {{- if eq .Values.nodejs.app.source "git" }}
+          workingDir: {{ .Values.nodejs.app.workingDir }}
+          {{- end }}
 
           {{- if .Values.nodejs.command }}
           command:
@@ -65,6 +165,12 @@ spec:
           {{- if $nodeEnvFrom }}
           envFrom:
             {{- include "webapp.nodejs.envFrom" . | nindent 12 }}
+          {{- end }}
+
+          {{- if eq .Values.nodejs.app.source "git" }}
+          volumeMounts:
+            - name: app-files
+              mountPath: {{ .Values.nodejs.app.workingDir }}
           {{- end }}
 
           {{- if .Values.nodejs.startupProbe.enabled }}

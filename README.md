@@ -5,6 +5,7 @@ Ein universelles Helm Chart für das Deployment von PHP und/oder Node.js Webappl
 ## 🎯 Features
 
 - **Ein Chart für alles** – PHP, Node.js oder beides gleichzeitig per Values steuern
+- **App aus Image *oder* Git** – `app.source: image` (Default) oder `app.source: git` mit optionalem Build-Schritt (composer install, npm ci)
 - **Datenbank-Support** – PostgreSQL und MariaDB als optionale Sub-Charts (Bitnami), `existingSecret` unterstützt
 - **PHP-FPM + Nginx + Init-Container** – Production-grade PHP Deployment mit korrekt geteiltem App-Volume
 - **Separate Deployments** – PHP und Node.js skalieren unabhängig voneinander
