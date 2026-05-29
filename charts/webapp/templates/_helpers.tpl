@@ -92,10 +92,24 @@ Create the name of the service account to use
 {{- end }}
 
 {{/*
+Name of the root-level app config ConfigMap.
+*/}}
+{{- define "webapp.configMapName" -}}
+{{- printf "%s-config" (include "webapp.fullname" .) }}
+{{- end }}
+
+{{/*
+Name of the PHP-FPM config ConfigMap.
+*/}}
+{{- define "webapp.php.configMapName" -}}
+{{- printf "%s-php-fpm" (include "webapp.fullname" .) }}
+{{- end }}
+
+{{/*
 Return the proper PHP image name
 */}}
 {{- define "webapp.php.image" -}}
-{{- $repo := .Values.php.image.repository -}}
+{{- $repo := required "php.image.repository is required when php.enabled=true" .Values.php.image.repository -}}
 {{- $tag := .Values.php.image.tag | toString -}}
 {{- if .Values.php.image.registry -}}
 {{- printf "%s/%s:%s" .Values.php.image.registry $repo $tag -}}
@@ -108,7 +122,7 @@ Return the proper PHP image name
 Return the proper Node.js image name
 */}}
 {{- define "webapp.nodejs.image" -}}
-{{- $repo := .Values.nodejs.image.repository -}}
+{{- $repo := required "nodejs.image.repository is required when nodejs.enabled=true" .Values.nodejs.image.repository -}}
 {{- $tag := .Values.nodejs.image.tag | toString -}}
 {{- if .Values.nodejs.image.registry -}}
 {{- printf "%s/%s:%s" .Values.nodejs.image.registry $repo $tag -}}
@@ -132,68 +146,90 @@ Return Node.js image pull policy
 {{- end }}
 
 {{/*
-Container security context with safe defaults
-*/}}
-{{- define "webapp.containerSecurityContext" -}}
-runAsNonRoot: true
-runAsUser: 1000
-allowPrivilegeEscalation: false
-capabilities:
-  drop:
-    - ALL
-readOnlyRootFilesystem: false
-{{- end }}
-
-{{/*
-Nginx container security context
+Nginx container security context.
 */}}
 {{- define "webapp.nginx.securityContext" -}}
 runAsNonRoot: true
 runAsUser: 101
+runAsGroup: 101
 allowPrivilegeEscalation: false
 capabilities:
   drop:
     - ALL
   add:
     - NET_BIND_SERVICE
+seccompProfile:
+  type: RuntimeDefault
 {{- end }}
 
 {{/*
 Database environment variables – injected into PHP and Node containers
-when a database sub-chart is enabled.
+when a database sub-chart is enabled. Honors auth.existingSecret.
 */}}
 {{- define "webapp.databaseEnvVars" -}}
+{{- $m := .Values.database.envMapping -}}
 {{- if .Values.postgresql.enabled }}
-- name: DB_CONNECTION
+{{- $secretName := default (printf "%s-postgresql" .Release.Name) .Values.postgresql.auth.existingSecret }}
+{{- $passwordKey := .Values.postgresql.auth.secretKeys.userPasswordKey | default "password" }}
+- name: {{ $m.connection }}
   value: "pgsql"
-- name: DB_HOST
+- name: {{ $m.host }}
   value: {{ printf "%s-postgresql" .Release.Name | quote }}
-- name: DB_PORT
+- name: {{ $m.port }}
   value: "5432"
-- name: DB_DATABASE
+- name: {{ $m.database }}
   value: {{ .Values.postgresql.auth.database | quote }}
-- name: DB_USERNAME
+- name: {{ $m.username }}
   value: {{ .Values.postgresql.auth.username | quote }}
-- name: DB_PASSWORD
+- name: {{ $m.password }}
   valueFrom:
     secretKeyRef:
-      name: {{ printf "%s-postgresql" .Release.Name }}
-      key: password
+      name: {{ $secretName }}
+      key: {{ $passwordKey }}
 {{- else if .Values.mariadb.enabled }}
-- name: DB_CONNECTION
+{{- $secretName := default (printf "%s-mariadb" .Release.Name) .Values.mariadb.auth.existingSecret }}
+{{- $passwordKey := .Values.mariadb.auth.secretKeys.userPasswordKey | default "mariadb-password" }}
+- name: {{ $m.connection }}
   value: "mysql"
-- name: DB_HOST
+- name: {{ $m.host }}
   value: {{ printf "%s-mariadb" .Release.Name | quote }}
-- name: DB_PORT
+- name: {{ $m.port }}
   value: "3306"
-- name: DB_DATABASE
+- name: {{ $m.database }}
   value: {{ .Values.mariadb.auth.database | quote }}
-- name: DB_USERNAME
+- name: {{ $m.username }}
   value: {{ .Values.mariadb.auth.username | quote }}
-- name: DB_PASSWORD
+- name: {{ $m.password }}
   valueFrom:
     secretKeyRef:
-      name: {{ printf "%s-mariadb" .Release.Name }}
-      key: mariadb-password
+      name: {{ $secretName }}
+      key: {{ $passwordKey }}
+{{- end }}
+{{- end }}
+
+{{/*
+envFrom snippet for PHP. Auto-includes the root app ConfigMap when
+.Values.config is set, plus any user-supplied php.envFrom entries.
+*/}}
+{{- define "webapp.php.envFrom" -}}
+{{- if .Values.config }}
+- configMapRef:
+    name: {{ include "webapp.configMapName" . }}
+{{- end }}
+{{- with .Values.php.envFrom }}
+{{- toYaml . }}
+{{- end }}
+{{- end }}
+
+{{/*
+envFrom snippet for Node.js.
+*/}}
+{{- define "webapp.nodejs.envFrom" -}}
+{{- if .Values.config }}
+- configMapRef:
+    name: {{ include "webapp.configMapName" . }}
+{{- end }}
+{{- with .Values.nodejs.envFrom }}
+{{- toYaml . }}
 {{- end }}
 {{- end }}

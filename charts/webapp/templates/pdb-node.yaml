@@ -1,0 +1,17 @@
+{{- if and .Values.nodejs.enabled .Values.nodejs.pdb.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "webapp.fullname" . }}-nodejs
+  labels:
+    {{- include "webapp.nodejs.labels" . | nindent 4 }}
+spec:
+  {{- if .Values.nodejs.pdb.minAvailable }}
+  minAvailable: {{ .Values.nodejs.pdb.minAvailable }}
+  {{- else if .Values.nodejs.pdb.maxUnavailable }}
+  maxUnavailable: {{ .Values.nodejs.pdb.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "webapp.nodejs.selectorLabels" . | nindent 6 }}
+{{- end }}

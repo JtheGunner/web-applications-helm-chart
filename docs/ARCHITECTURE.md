@@ -132,19 +132,35 @@ Dies ermöglicht:
 
 ### 6. Security Defaults
 
-**Container Security:**
+**Container Security (PHP-FPM):**
 ```yaml
 securityContext:
   runAsNonRoot: true
-  runAsUser: 1000
+  runAsUser: 33     # www-data in offiziellen php:*-fpm Images
+  runAsGroup: 33
   allowPrivilegeEscalation: false
   capabilities:
     drop: ["ALL"]
+  seccompProfile:
+    type: RuntimeDefault
 ```
+
+**Container Security (Node.js):**
+```yaml
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000   # "node" in offiziellen node:*-alpine Images
+  runAsGroup: 1000
+```
+
+> Bei Custom-Images sicherstellen, dass der konfigurierte UID/GID auf
+> `/var/www/html` (PHP) bzw. dem App-Working-Dir (Node) Schreibrechte hat.
+> Andernfalls `php.securityContext.runAsUser` bzw. `nodejs.securityContext.runAsUser`
+> anpassen.
 
 **ServiceAccount:**
 ```yaml
-automountServiceAccountToken: false
+automountServiceAccountToken: false   # Auf ServiceAccount und Pod-Spec
 ```
 
 ## Component Flow
@@ -179,21 +195,36 @@ helm template test charts/webapp
 # FEHLER: Mindestens eine Runtime muss aktiviert sein.
 
 # Beide DBs → Fehler
-helm template test charts/webapp --set php.enabled=true --set postgresql.enabled=true --set mariadb.enabled=true
+helm template test charts/webapp \
+  --set php.enabled=true --set php.image.repository=test \
+  --set postgresql.enabled=true --set mariadb.enabled=true
 # FEHLER: Nur eine Datenbank kann gleichzeitig aktiviert werden.
+
+# Image fehlt → required-Fehler
+helm template test charts/webapp --set php.enabled=true
+# Error: php.image.repository is required when php.enabled=true
 ```
 
 ## Testing
 
 ```bash
 # Lint
-helm lint charts/webapp --set php.enabled=true
+helm lint charts/webapp --set php.enabled=true --set php.image.repository=test
 
-# Template rendern
-helm template test charts/webapp --set php.enabled=true --set php.image.repository=test
+# Template rendern (funktionierendes Minimal-Setup)
+helm template test charts/webapp \
+  --set php.enabled=true \
+  --set php.image.repository=jthegunner/my-php-app \
+  --set php.image.tag=v1.0.0
 
-# Dry-Run
-helm install test charts/webapp --dry-run --set php.enabled=true --set php.image.repository=test
+# Vollständiges Setup mit Beispiel-Values
+helm dependency update charts/webapp
+helm template test charts/webapp -f examples/php-and-node.yaml
+
+# Dry-Run gegen einen echten Cluster
+helm install test charts/webapp --dry-run \
+  --set php.enabled=true \
+  --set php.image.repository=jthegunner/my-php-app
 ```
 
 ---

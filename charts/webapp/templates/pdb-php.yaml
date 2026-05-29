@@ -1,0 +1,17 @@
+{{- if and .Values.php.enabled .Values.php.pdb.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "webapp.fullname" . }}-php
+  labels:
+    {{- include "webapp.php.labels" . | nindent 4 }}
+spec:
+  {{- if .Values.php.pdb.minAvailable }}
+  minAvailable: {{ .Values.php.pdb.minAvailable }}
+  {{- else if .Values.php.pdb.maxUnavailable }}
+  maxUnavailable: {{ .Values.php.pdb.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "webapp.php.selectorLabels" . | nindent 6 }}
+{{- end }}

@@ -6,7 +6,7 @@
 # =============================================================================
 
 # =============================================================================
-# PHP Runtime
+# PHP Runtime (PHP-FPM + Nginx Sidecar)
 # =============================================================================
 php:
   enabled: false
@@ -18,8 +18,27 @@ php:
     pullPolicy: IfNotPresent
 
   replicaCount: 1
+  revisionHistoryLimit: 5
 
-  # PHP-FPM Container
+  # Pod Security Context. fsGroup MUSS zur GID passen, die das Image für
+  # /var/www/html erwartet. Für offizielle php:*-fpm Images ist das 33 (www-data).
+  podSecurityContext:
+    fsGroup: 33
+
+  # Container Security Context für PHP-FPM. runAsUser=33 entspricht "www-data"
+  # in offiziellen php:*-fpm Images. Bei Custom-Images ggf. anpassen.
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 33
+    runAsGroup: 33
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: false
+    seccompProfile:
+      type: RuntimeDefault
+
   resources:
     requests:
       cpu: 200m
@@ -38,14 +57,31 @@ php:
     #       name: app-secrets
     #       key: app-key
 
-  # PHP-FPM Konfiguration (optional, als ConfigMap gemountet)
+  # envFrom Quellen für PHP-FPM (zusätzlich zur root config ConfigMap, die
+  # automatisch eingebunden wird, wenn .Values.config gesetzt ist).
+  envFrom: []
+    # - secretRef:
+    #     name: app-secrets
+    # - configMapRef:
+    #     name: extra-config
+
+  # PHP-FPM Konfiguration: wird als ConfigMap nach /usr/local/etc/php-fpm.d/
+  # gemountet. Keys werden zu Dateinamen.
   config: {}
     # www.conf: |
     #   [www]
     #   pm = dynamic
     #   pm.max_children = 50
+    #   pm.start_servers = 5
 
-  # Nginx Sidecar (wird immer mit PHP deployed)
+  # Init-Container, der den Applikations-Code aus dem PHP-Image in das
+  # gemeinsame emptyDir-Volume kopiert. Notwendig, weil sich PHP-FPM und Nginx
+  # /var/www/html teilen.
+  initContainer:
+    enabled: true
+    # Quellpfad innerhalb des PHP-Images. Inhalt wird nach /app-files kopiert.
+    sourceDir: /var/www/html
+
   nginx:
     image:
       repository: nginx
@@ -58,14 +94,14 @@ php:
       limits:
         cpu: 500m
         memory: 256Mi
+    # Optional: server_name in der Nginx-Config (default "_" = alle Hosts).
+    serverName: "_"
 
-  # Service
   service:
     type: ClusterIP
     port: 80
     annotations: {}
 
-  # Ingress
   ingress:
     enabled: false
     className: ""
@@ -82,11 +118,10 @@ php:
       #   hosts:
       #     - app.example.com
 
-  # Health Checks
+  # HTTP Probes laufen gegen den Nginx-Sidecar (Port 80).
   livenessProbe:
     enabled: true
     path: /health.php
-    port: 80
     initialDelaySeconds: 30
     periodSeconds: 10
     timeoutSeconds: 5
@@ -95,18 +130,62 @@ php:
   readinessProbe:
     enabled: true
     path: /health.php
-    port: 80
     initialDelaySeconds: 10
     periodSeconds: 5
     timeoutSeconds: 3
     failureThreshold: 3
 
-  # Autoscaling
+  # Startup Probe für langsam startende Frameworks (Laravel-Boot, Composer-Autoload).
+  startupProbe:
+    enabled: false
+    path: /health.php
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 30
+
+  # TCP-Probe direkt auf den PHP-FPM Worker (Port 9000), damit hängende
+  # FPM-Prozesse vom kubelet neu gestartet werden.
+  fpmProbe:
+    enabled: true
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+
   autoscaling:
     enabled: false
     minReplicas: 1
     maxReplicas: 10
     targetCPUUtilizationPercentage: 80
+
+  # PodDisruptionBudget (HA gegen Node-Drains).
+  pdb:
+    enabled: false
+    minAvailable: 1
+    # maxUnavailable: 1
+
+  # NetworkPolicy. Wenn enabled, werden nur Pods mit den unten definierten
+  # Selektoren eingelassen. Default: leer = alle ingress erlaubt.
+  networkPolicy:
+    enabled: false
+    ingress: []
+      # - from:
+      #     - namespaceSelector:
+      #         matchLabels:
+      #           kubernetes.io/metadata.name: ingress-nginx
+
+  # Scheduling: überschreibt root-level Werte, wenn gesetzt.
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  topologySpreadConstraints: []
+    # - maxSkew: 1
+    #   topologyKey: topology.kubernetes.io/zone
+    #   whenUnsatisfiable: ScheduleAnyway
+    #   labelSelector:
+    #     matchLabels:
+    #       app.kubernetes.io/component: php
 
 # =============================================================================
 # Node.js Runtime
@@ -120,15 +199,32 @@ nodejs:
     tag: "latest"
     pullPolicy: IfNotPresent
 
-  # Application Port
   port: 3000
 
-  # Custom Command (default: npm start)
+  # Custom Command (default: image ENTRYPOINT / CMD)
   command: []
     # - node
     # - server.js
 
   replicaCount: 1
+  revisionHistoryLimit: 5
+
+  podSecurityContext:
+    fsGroup: 1000
+
+  # Container Security Context. Offizielles node:*-alpine Image hat "node"
+  # mit UID 1000.
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: false
+    seccompProfile:
+      type: RuntimeDefault
 
   resources:
     requests:
@@ -138,18 +234,17 @@ nodejs:
       cpu: 1000m
       memory: 512Mi
 
-  # Environment Variables
   env:
     - name: NODE_ENV
       value: production
 
-  # Service
+  envFrom: []
+
   service:
     type: ClusterIP
     port: 80
     annotations: {}
 
-  # Ingress
   ingress:
     enabled: false
     className: ""
@@ -157,11 +252,9 @@ nodejs:
     hosts: []
     tls: []
 
-  # Health Checks
   livenessProbe:
     enabled: true
     path: /health
-    port: 3000
     initialDelaySeconds: 30
     periodSeconds: 10
     timeoutSeconds: 5
@@ -170,24 +263,61 @@ nodejs:
   readinessProbe:
     enabled: true
     path: /ready
-    port: 3000
     initialDelaySeconds: 10
     periodSeconds: 5
     timeoutSeconds: 3
     failureThreshold: 3
 
-  # Autoscaling
+  startupProbe:
+    enabled: false
+    path: /health
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 30
+
   autoscaling:
     enabled: false
     minReplicas: 1
     maxReplicas: 10
     targetCPUUtilizationPercentage: 80
 
+  pdb:
+    enabled: false
+    minAvailable: 1
+
+  networkPolicy:
+    enabled: false
+    ingress: []
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  topologySpreadConstraints: []
+
+# =============================================================================
+# Datenbank-Env-Var-Mapping
+# =============================================================================
+# Steuert die Namen der DB-Environment-Variablen, die in die Runtime-Container
+# injiziert werden. Defaults sind Laravel/Symfony-Style. Für Node.js-Apps
+# können die Keys überschrieben werden (z. B. POSTGRES_HOST, DATABASE_URL).
+# =============================================================================
+database:
+  envMapping:
+    connection: DB_CONNECTION
+    host: DB_HOST
+    port: DB_PORT
+    database: DB_DATABASE
+    username: DB_USERNAME
+    password: DB_PASSWORD
+
 # =============================================================================
 # Datenbank – PostgreSQL (Bitnami Sub-Chart)
 # =============================================================================
 # Aktiviere postgresql.enabled ODER mariadb.enabled, nicht beides.
 # Doku: https://github.com/bitnami/charts/tree/main/bitnami/postgresql
+#
+# Production: lieber existingSecret nutzen statt Passwörter in Values.
 # =============================================================================
 postgresql:
   enabled: false
@@ -196,7 +326,10 @@ postgresql:
     username: "webapp"
     password: ""
     database: "webapp"
-    # existingSecret: ""
+    existingSecret: ""
+    # Key im existingSecret, der das User-Passwort enthält (Bitnami-Default: "password").
+    secretKeys:
+      userPasswordKey: password
   primary:
     persistence:
       enabled: true
@@ -215,7 +348,10 @@ mariadb:
     username: "webapp"
     password: ""
     database: "webapp"
-    # existingSecret: ""
+    existingSecret: ""
+    # Key im existingSecret. Bitnami-Default für User-Passwort: "mariadb-password".
+    secretKeys:
+      userPasswordKey: mariadb-password
   primary:
     persistence:
       enabled: true
@@ -235,13 +371,13 @@ serviceAccount:
 
 podAnnotations: {}
 
-podSecurityContext:
-  fsGroup: 1000
-
+# Root-Scheduling (Fallback, wenn pro Runtime nichts gesetzt ist)
 nodeSelector: {}
 tolerations: []
 affinity: {}
 
-# Allgemeine App-Config (als ConfigMap gemountet)
+# Allgemeine App-Config: wird als ConfigMap erzeugt und in allen aktivierten
+# Runtimes via envFrom eingebunden. Keys sind die Env-Var-Namen.
 config: {}
   # APP_NAME: "My App"
+  # LOG_LEVEL: "info"

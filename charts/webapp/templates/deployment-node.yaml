@@ -7,6 +7,7 @@ metadata:
   labels:
     {{- include "webapp.nodejs.labels" . | nindent 4 }}
 spec:
+  revisionHistoryLimit: {{ .Values.nodejs.revisionHistoryLimit }}
   {{- if not .Values.nodejs.autoscaling.enabled }}
   replicas: {{ .Values.nodejs.replicaCount }}
   {{- end }}
@@ -16,11 +17,11 @@ spec:
   template:
     metadata:
       annotations:
-        {{- with .Values.podAnnotations }}
-        {{- toYaml . | nindent 8 }}
-        {{- end }}
         {{- if .Values.config }}
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
         {{- end }}
       labels:
         {{- include "webapp.nodejs.selectorLabels" . | nindent 8 }}
@@ -30,8 +31,9 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "webapp.serviceAccountName" . }}
+      automountServiceAccountToken: false
       securityContext:
-        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+        {{- toYaml .Values.nodejs.podSecurityContext | nindent 8 }}
 
       containers:
         - name: nodejs
@@ -39,7 +41,7 @@ spec:
           imagePullPolicy: {{ include "webapp.nodejs.imagePullPolicy" . }}
 
           securityContext:
-            {{- include "webapp.containerSecurityContext" . | nindent 12 }}
+            {{- toYaml .Values.nodejs.securityContext | nindent 12 }}
 
           {{- if .Values.nodejs.command }}
           command:
@@ -59,11 +61,28 @@ spec:
             {{- toYaml . | nindent 12 }}
             {{- end }}
 
+          {{- $nodeEnvFrom := include "webapp.nodejs.envFrom" . | trim }}
+          {{- if $nodeEnvFrom }}
+          envFrom:
+            {{- include "webapp.nodejs.envFrom" . | nindent 12 }}
+          {{- end }}
+
+          {{- if .Values.nodejs.startupProbe.enabled }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.nodejs.startupProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.nodejs.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.nodejs.startupProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.nodejs.startupProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.nodejs.startupProbe.failureThreshold }}
+          {{- end }}
+
           {{- if .Values.nodejs.livenessProbe.enabled }}
           livenessProbe:
             httpGet:
               path: {{ .Values.nodejs.livenessProbe.path }}
-              port: {{ .Values.nodejs.livenessProbe.port }}
+              port: http
             initialDelaySeconds: {{ .Values.nodejs.livenessProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.nodejs.livenessProbe.periodSeconds }}
             timeoutSeconds: {{ .Values.nodejs.livenessProbe.timeoutSeconds }}
@@ -74,7 +93,7 @@ spec:
           readinessProbe:
             httpGet:
               path: {{ .Values.nodejs.readinessProbe.path }}
-              port: {{ .Values.nodejs.readinessProbe.port }}
+              port: http
             initialDelaySeconds: {{ .Values.nodejs.readinessProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.nodejs.readinessProbe.periodSeconds }}
             timeoutSeconds: {{ .Values.nodejs.readinessProbe.timeoutSeconds }}
@@ -84,16 +103,20 @@ spec:
           resources:
             {{- toYaml .Values.nodejs.resources | nindent 12 }}
 
-      {{- with .Values.nodeSelector }}
+      {{- with (default .Values.nodeSelector .Values.nodejs.nodeSelector) }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.affinity }}
+      {{- with (default .Values.affinity .Values.nodejs.affinity) }}
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.tolerations }}
+      {{- with (default .Values.tolerations .Values.nodejs.tolerations) }}
       tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodejs.topologySpreadConstraints }}
+      topologySpreadConstraints:
         {{- toYaml . | nindent 8 }}
       {{- end }}
 {{- end }}

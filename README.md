@@ -5,12 +5,13 @@ Ein universelles Helm Chart für das Deployment von PHP und/oder Node.js Webappl
 ## 🎯 Features
 
 - **Ein Chart für alles** – PHP, Node.js oder beides gleichzeitig per Values steuern
-- **Datenbank-Support** – PostgreSQL und MariaDB als optionale Sub-Charts (Bitnami)
-- **PHP-FPM + Nginx** – Production-grade PHP Deployment mit Sidecar Pattern
+- **Datenbank-Support** – PostgreSQL und MariaDB als optionale Sub-Charts (Bitnami), `existingSecret` unterstützt
+- **PHP-FPM + Nginx + Init-Container** – Production-grade PHP Deployment mit korrekt geteiltem App-Volume
 - **Separate Deployments** – PHP und Node.js skalieren unabhängig voneinander
-- **Production-Ready Security** – Non-root Users, Capability Drops, Security Headers
-- **Health Checks** – Liveness und Readiness Probes
-- **Autoscaling** – HPA Support pro Runtime
+- **Production-Ready Security** – Non-root Users, Capability Drops, seccomp, Security Headers
+- **Health Checks** – Liveness, Readiness und Startup Probes; TCP-Probe direkt auf PHP-FPM
+- **Autoscaling, PDB & NetworkPolicy** – HPA, PodDisruptionBudget und NetworkPolicy pro Runtime
+- **HA-Scheduling** – `topologySpreadConstraints`, `affinity`, `tolerations` pro Runtime
 - **FluxCD Ready** – GitOps-friendly mit minimaler Konfiguration
 
 ## 📁 Repository Struktur
@@ -19,23 +20,28 @@ Ein universelles Helm Chart für das Deployment von PHP und/oder Node.js Webappl
 web-applications-helm-chart/
 ├── charts/
 │   └── webapp/                     # Das einheitliche Helm Chart
-│       ├── Chart.yaml              # Chart-Definition + DB Dependencies
-│       ├── values.yaml             # Alle konfigurierbaren Values
+│       ├── Chart.yaml                  # Chart-Definition + DB Dependencies
+│       ├── values.yaml                 # Alle konfigurierbaren Values
 │       └── templates/
-│           ├── _helpers.tpl        # Name, Label, Image Helpers
-│           ├── _validate.tpl       # Input-Validierung
-│           ├── deployment-php.yaml # PHP-FPM + Nginx (conditional)
-│           ├── deployment-node.yaml# Node.js (conditional)
-│           ├── service-php.yaml    # PHP Service
-│           ├── service-node.yaml   # Node Service
-│           ├── ingress-php.yaml    # PHP Ingress
-│           ├── ingress-node.yaml   # Node Ingress
-│           ├── nginx-config.yaml   # Nginx Config für PHP-FPM
-│           ├── configmap.yaml      # App-Konfiguration
-│           ├── hpa-php.yaml        # HPA für PHP
-│           ├── hpa-node.yaml       # HPA für Node.js
-│           ├── serviceaccount.yaml # ServiceAccount
-│           └── NOTES.txt           # Helm install Output
+│           ├── _helpers.tpl            # Name, Label, Image, envFrom Helpers
+│           ├── validate.yaml           # Input-Validierung (Runtime/DB)
+│           ├── deployment-php.yaml     # PHP-FPM + Nginx + Init-Container
+│           ├── deployment-node.yaml    # Node.js
+│           ├── service-php.yaml        # PHP Service
+│           ├── service-node.yaml       # Node Service
+│           ├── ingress-php.yaml        # PHP Ingress
+│           ├── ingress-node.yaml       # Node Ingress
+│           ├── nginx-config.yaml       # Nginx Config für PHP-FPM
+│           ├── configmap.yaml          # Root-App-Konfiguration (envFrom)
+│           ├── configmap-php-fpm.yaml  # PHP-FPM Tuning (www.conf etc.)
+│           ├── hpa-php.yaml            # HPA für PHP
+│           ├── hpa-node.yaml           # HPA für Node.js
+│           ├── pdb-php.yaml            # PodDisruptionBudget PHP
+│           ├── pdb-node.yaml           # PodDisruptionBudget Node.js
+│           ├── networkpolicy-php.yaml  # NetworkPolicy PHP
+│           ├── networkpolicy-node.yaml # NetworkPolicy Node.js
+│           ├── serviceaccount.yaml     # ServiceAccount
+│           └── NOTES.txt               # Helm install Output
 │
 ├── examples/
 │   ├── only-php.yaml              # Nur PHP + PostgreSQL
