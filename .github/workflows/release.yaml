@@ -38,4 +38,7 @@ jobs:
           # OCI references müssen lowercase sein; github.repository_owner behält die Original-Schreibweise.
           OWNER_LC=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
 
-          helm push "${CHART_NAME}-${CHART_VERSION}.tgz" "oci://ghcr.io/${OWNER_LC}/helm-charts"
+          # Push direkt unter den User-Namespace: das resultierende Package ist
+          # ghcr.io/<owner>/<chart-name>. Nested Paths (z. B. /helm-charts/webapp)
+          # können vom GITHUB_TOKEN beim First-Push nicht auto-erstellt werden.
+          helm push "${CHART_NAME}-${CHART_VERSION}.tgz" "oci://ghcr.io/${OWNER_LC}"

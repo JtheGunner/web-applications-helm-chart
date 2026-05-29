@@ -9,7 +9,7 @@ metadata:
 spec:
   interval: 5m
   type: oci
-  url: oci://ghcr.io/jthegunner/helm-charts
+  url: oci://ghcr.io/jthegunner
   # Optional: Authentication für private Registry
   # secretRef:
   #   name: ghcr-auth

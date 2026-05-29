@@ -36,14 +36,14 @@ helm dependency update charts/webapp
 helm package charts/webapp
 
 # Pushen zu GHCR
-helm push webapp-1.0.0.tgz oci://ghcr.io/jthegunner/helm-charts
+helm push webapp-1.0.0.tgz oci://ghcr.io/jthegunner
 ```
 
 #### 2. Installation aus OCI Registry
 
 ```bash
 # Helm 3.8+ unterstützt OCI nativ
-helm install my-app oci://ghcr.io/jthegunner/helm-charts/webapp \
+helm install my-app oci://ghcr.io/jthegunner/webapp \
   --version 1.0.0 \
   -f values.yaml
 ```
@@ -63,7 +63,7 @@ metadata:
 spec:
   interval: 5m
   type: oci
-  url: oci://ghcr.io/jthegunner/helm-charts
+  url: oci://ghcr.io/jthegunner
 ```
 
 ### 2. HelmRelease erstellen
@@ -188,7 +188,7 @@ jobs:
         run: |
           helm dependency update charts/webapp
           helm package charts/webapp
-          helm push webapp-*.tgz oci://ghcr.io/${{ github.repository_owner }}/helm-charts
+          helm push webapp-*.tgz oci://ghcr.io/$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')/helm-charts
 ```
 
 ---
@@ -199,7 +199,7 @@ jobs:
 
 ```bash
 # OCI Registry direkt testen
-helm show chart oci://ghcr.io/jthegunner/helm-charts/webapp
+helm show chart oci://ghcr.io/jthegunner/webapp
 ```
 
 ### Dependencies fehlen

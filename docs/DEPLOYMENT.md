@@ -198,7 +198,7 @@ metadata:
 spec:
   interval: 5m
   type: oci
-  url: oci://ghcr.io/jthegunner/helm-charts
+  url: oci://ghcr.io/jthegunner
 ```
 
 ### 2. HelmRelease erstellen
