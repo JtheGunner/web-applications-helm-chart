@@ -14,6 +14,14 @@ keywords:
   - mariadb
   - kubernetes
 
+# OCI annotations: GHCR liest org.opencontainers.image.source und linkt das
+# Package automatisch an dieses Repository (Voraussetzung dafür, dass der
+# Workflow-eigene GITHUB_TOKEN das Package neu anlegen darf).
+annotations:
+  org.opencontainers.image.source: https://github.com/JtheGunner/web-applications-helm-chart
+  org.opencontainers.image.description: "Universelles Helm Chart für PHP- und Node.js-Webapplikationen mit optionaler Datenbank"
+  org.opencontainers.image.licenses: MIT
+
 dependencies:
   - name: postgresql
     version: "~18.5.0"
