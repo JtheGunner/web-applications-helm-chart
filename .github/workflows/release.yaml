@@ -35,5 +35,7 @@ jobs:
 
           CHART_NAME=$(yq '.name' charts/webapp/Chart.yaml)
           CHART_VERSION=$(yq '.version' charts/webapp/Chart.yaml)
+          # OCI references müssen lowercase sein; github.repository_owner behält die Original-Schreibweise.
+          OWNER_LC=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
 
-          helm push "${CHART_NAME}-${CHART_VERSION}.tgz" oci://ghcr.io/${{ github.repository_owner }}/helm-charts
+          helm push "${CHART_NAME}-${CHART_VERSION}.tgz" "oci://ghcr.io/${OWNER_LC}/helm-charts"
