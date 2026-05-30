@@ -130,7 +130,14 @@ php:
         tag: "2"
         pullPolicy: IfNotPresent
       # Executed via sh -c "..."; CWD = /var/www/html.
-      command: "composer install --no-dev --optimize-autoloader --no-interaction"
+      # The default handles two common gotchas:
+      #   - git config safe.directory '*': avoids "dubious ownership" errors when
+      #     the build container's UID differs from the git-clone container's UID.
+      #   - --ignore-platform-reqs: the composer image is a slim PHP-CLI image and
+      #     usually lacks extensions like ext-intl/ext-pdo that the *runtime* image
+      #     provides. Composer would refuse to install otherwise. Make sure your
+      #     RUNTIME PHP-FPM image actually has those extensions installed!
+      command: "git config --global --add safe.directory '*' && composer install --no-dev --optimize-autoloader --no-interaction --ignore-platform-reqs"
       env: []
       resources:
         requests:

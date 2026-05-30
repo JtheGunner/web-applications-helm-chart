@@ -155,9 +155,17 @@ useful for internal/personal apps.
 2. Init container **`git-clone`** (image: `alpine/git`) clones the repo
    into `/app-files`. For private repos: an SSH key from a Kubernetes Secret.
 3. Init container **`app-build`** runs the build step.
-   For **PHP**, this is enabled by default and runs
-   `composer install --no-dev --optimize-autoloader --no-interaction` in the
-   `composer:2` image. For **Node.js**, it is opt-in
+   For **PHP**, this is enabled by default and runs (in the `composer:2` image):
+   ```
+   git config --global --add safe.directory '*' \
+     && composer install --no-dev --optimize-autoloader \
+        --no-interaction --ignore-platform-reqs
+   ```
+   The `safe.directory` line avoids "dubious ownership" errors when the
+   build container's UID differs from git-clone's. `--ignore-platform-reqs`
+   is needed because the slim composer image lacks extensions like
+   `ext-intl` that apps usually require — those must instead be present in
+   the RUNTIME PHP-FPM image. For **Node.js**, build is opt-in
    (`nodejs.app.build.enabled: true` + a `command`).
 4. Runtime containers (PHP-FPM, Nginx, Node) start with the files ready.
 

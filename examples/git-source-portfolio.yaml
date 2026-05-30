@@ -16,8 +16,19 @@ php:
   enabled: true
 
   # Runtime image: PHP-FPM for request handling.
-  # The official image does NOT include composer — but the chart's build step
-  # uses the composer:2 image by default, so this works out of the box.
+  #
+  # IMPORTANT: the stock php:*-fpm-alpine image does NOT ship with ext-intl,
+  # ext-pdo, etc. that most apps (including this portfolio) need. The composer
+  # build step succeeds because of --ignore-platform-reqs, but the app will
+  # fail at runtime if the FPM image lacks the extensions.
+  #
+  # For real use, build (or pick) a custom PHP-FPM image with your extensions:
+  #
+  #   FROM php:8.3-fpm-alpine
+  #   RUN apk add --no-cache icu-dev libpq-dev oniguruma-dev \
+  #    && docker-php-ext-install intl pdo_pgsql pdo_mysql
+  #
+  # ...and push it to your registry, then reference it here.
   image:
     repository: php
     tag: "8.3-fpm-alpine"
