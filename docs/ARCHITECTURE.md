@@ -196,6 +196,7 @@ securityContext:
   allowPrivilegeEscalation: false
   capabilities:
     drop: ["ALL"]
+    add: ["SETGID", "SETUID"]
   seccompProfile:
     type: RuntimeDefault
 ```

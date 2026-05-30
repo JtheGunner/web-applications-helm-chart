@@ -35,6 +35,9 @@ php:
     capabilities:
       drop:
         - ALL
+      add:
+        - SETGID
+        - SETUID
     readOnlyRootFilesystem: false
     seccompProfile:
       type: RuntimeDefault
@@ -288,6 +291,9 @@ nodejs:
     capabilities:
       drop:
         - ALL
+      add:
+        - SETGID
+        - SETUID
     readOnlyRootFilesystem: false
     seccompProfile:
       type: RuntimeDefault

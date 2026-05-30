@@ -166,6 +166,8 @@ capabilities:
   drop:
     - ALL
   add:
+    - SETGID
+    - SETUID
     - NET_BIND_SERVICE
 seccompProfile:
   type: RuntimeDefault
