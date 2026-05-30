@@ -65,6 +65,11 @@ spec:
             # before invoking SSH, so OpenSSH never sees this mode directly.
             defaultMode: 288  # 0440
         {{- end }}
+        {{- if eq .Values.php.app.source "git" }}
+        - name: passwd-fixup
+          configMap:
+            name: {{ include "webapp.passwdConfigMapName" . }}
+        {{- end }}
 
       initContainers:
         {{- if eq .Values.php.app.source "image" }}
@@ -139,6 +144,10 @@ spec:
               mountPath: /etc/git-ssh
               readOnly: true
             {{- end }}
+            - name: passwd-fixup
+              mountPath: /etc/passwd
+              subPath: passwd
+              readOnly: true
           resources:
             {{- toYaml .Values.php.app.git.resources | nindent 12 }}
         {{- if .Values.php.app.build.enabled }}
@@ -178,6 +187,10 @@ spec:
           volumeMounts:
             - name: app-files
               mountPath: /var/www/html
+            - name: passwd-fixup
+              mountPath: /etc/passwd
+              subPath: passwd
+              readOnly: true
           resources:
             {{- toYaml .Values.php.app.build.resources | nindent 12 }}
         {{- end }}

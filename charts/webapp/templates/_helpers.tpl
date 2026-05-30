@@ -106,6 +106,15 @@ Name of the PHP-FPM config ConfigMap.
 {{- end }}
 
 {{/*
+Name of the synthetic /etc/passwd ConfigMap. Used by git-clone/app-build
+init containers so OpenSSH's getpwuid() lookup for the runtime UID
+succeeds (alpine/git's /etc/passwd doesn't have UID 33).
+*/}}
+{{- define "webapp.passwdConfigMapName" -}}
+{{- printf "%s-passwd" (include "webapp.fullname" .) }}
+{{- end }}
+
+{{/*
 Return the proper PHP image name
 */}}
 {{- define "webapp.php.image" -}}

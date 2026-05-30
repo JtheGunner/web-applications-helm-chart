@@ -1,0 +1,39 @@
+{{/*
+Synthetic /etc/passwd for git-clone/app-build init containers.
+
+OpenSSH refuses to start when getpwuid() can't resolve the running UID
+to a passwd entry ("No user exists for uid X"). The alpine/git image
+doesn't include entries for the UIDs we run as (33 for PHP, 1000 for
+Node.js), so we mount a minimal passwd file via subPath into the
+relevant init containers.
+
+Only rendered when at least one runtime uses source=git.
+*/}}
+{{- $phpGit := and .Values.php.enabled (eq .Values.php.app.source "git") -}}
+{{- $nodeGit := and .Values.nodejs.enabled (eq .Values.nodejs.app.source "git") -}}
+{{- if or $phpGit $nodeGit }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "webapp.passwdConfigMapName" . }}
+  labels:
+    {{- include "webapp.labels" . | nindent 4 }}
+data:
+  passwd: |
+    root:x:0:0:root:/root:/bin/sh
+    {{- if $phpGit }}
+    {{- $uid := .Values.php.securityContext.runAsUser | int }}
+    {{- $gid := .Values.php.securityContext.runAsGroup | int }}
+    app:x:{{ $uid }}:{{ $gid }}:app:/tmp:/bin/sh
+    {{- end }}
+    {{- if $nodeGit }}
+    {{- $uid := .Values.nodejs.securityContext.runAsUser | int }}
+    {{- $gid := .Values.nodejs.securityContext.runAsGroup | int }}
+    {{- if and $phpGit (eq $uid (.Values.php.securityContext.runAsUser | int)) }}
+    {{/* Same UID as PHP — skip duplicate entry */}}
+    {{- else }}
+    node:x:{{ $uid }}:{{ $gid }}:node:/tmp:/bin/sh
+    {{- end }}
+    {{- end }}
+    nobody:x:65534:65534:nobody:/:/sbin/nologin
+{{- end }}

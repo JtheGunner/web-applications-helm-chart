@@ -48,6 +48,9 @@ spec:
             # before invoking SSH, so OpenSSH never sees this mode directly.
             defaultMode: 288  # 0440
         {{- end }}
+        - name: passwd-fixup
+          configMap:
+            name: {{ include "webapp.passwdConfigMapName" . }}
 
       initContainers:
         # Runs as the same UID as the runtime/build containers so that
@@ -101,6 +104,10 @@ spec:
               mountPath: /etc/git-ssh
               readOnly: true
             {{- end }}
+            - name: passwd-fixup
+              mountPath: /etc/passwd
+              subPath: passwd
+              readOnly: true
           resources:
             {{- toYaml .Values.nodejs.app.git.resources | nindent 12 }}
         {{- if .Values.nodejs.app.build.enabled }}
@@ -138,6 +145,10 @@ spec:
           volumeMounts:
             - name: app-files
               mountPath: {{ .Values.nodejs.app.workingDir }}
+            - name: passwd-fixup
+              mountPath: /etc/passwd
+              subPath: passwd
+              readOnly: true
           resources:
             {{- toYaml .Values.nodejs.app.build.resources | nindent 12 }}
         {{- end }}
