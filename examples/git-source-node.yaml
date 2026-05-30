@@ -1,9 +1,9 @@
 # =============================================================================
-# Beispiel: Node.js-App direkt aus einem Git-Repo deployen
+# Example: deploy a Node.js app directly from a Git repo
 # =============================================================================
-# Klont ein Node-Repo zur Pod-Startzeit, läuft npm ci und startet die App.
+# Clones a Node repo at pod start, runs npm ci, and starts the app.
 #
-# Deployment: helm install my-api charts/webapp -f examples/git-source-node.yaml
+# Deploy: helm install my-api charts/webapp -f examples/git-source-node.yaml
 # =============================================================================
 
 nodejs:
@@ -25,7 +25,7 @@ nodejs:
       cpu: 1000m
       memory: 1Gi
 
-  # Startbefehl im geklonten Repo.
+  # Start command inside the cloned repo.
   command:
     - node
     - server.js
@@ -38,7 +38,7 @@ nodejs:
       url: https://github.com/example-org/example-node-api
       ref: main
       depth: 1
-      # Privates Repo:
+      # Private repo:
       # url: git@github.com:example-org/example-node-api.git
       # sshSecret:
       #   name: example-api-ssh

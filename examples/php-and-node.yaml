@@ -1,8 +1,8 @@
 # =============================================================================
-# Beispiel: PHP + Node.js mit PostgreSQL
+# Example: PHP + Node.js with PostgreSQL
 # =============================================================================
-# Use Case: PHP für Frontend, Node.js für API/Backend
-# Deployment: helm install my-app charts/webapp -f examples/php-and-node.yaml
+# Use case: PHP for the frontend, Node.js for the API/backend.
+# Deploy: helm install my-app charts/webapp -f examples/php-and-node.yaml
 # =============================================================================
 
 php:
@@ -59,7 +59,7 @@ nodejs:
     - name: CORS_ORIGIN
       value: "https://app.example.com"
 
-  # Node.js API auf eigener Subdomain
+  # Node.js API on its own subdomain
   ingress:
     enabled: true
     className: nginx
@@ -75,7 +75,7 @@ nodejs:
         hosts:
           - api.example.com
 
-# Gemeinsame Datenbank für beide Runtimes
+# Shared database for both runtimes
 postgresql:
   enabled: true
   auth:

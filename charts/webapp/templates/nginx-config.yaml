@@ -18,7 +18,7 @@ data:
         add_header X-Content-Type-Options "nosniff" always;
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
-        # Logging an stdout/stderr (Container-friendly)
+        # Logging to stdout/stderr (container-friendly)
         access_log /dev/stdout;
         error_log /dev/stderr warn;
 

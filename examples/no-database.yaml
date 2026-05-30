@@ -1,7 +1,7 @@
 # =============================================================================
-# Beispiel: Minimales Deployment ohne Datenbank
+# Example: Minimal deployment, no database
 # =============================================================================
-# Deployment: helm install my-app charts/webapp -f examples/no-database.yaml
+# Deploy: helm install my-app charts/webapp -f examples/no-database.yaml
 # =============================================================================
 
 php:
@@ -17,4 +17,4 @@ php:
   ingress:
     enabled: false
 
-# Kein postgresql.enabled oder mariadb.enabled = keine Datenbank
+# No postgresql.enabled or mariadb.enabled = no database

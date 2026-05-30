@@ -35,10 +35,10 @@ jobs:
 
           CHART_NAME=$(yq '.name' charts/webapp/Chart.yaml)
           CHART_VERSION=$(yq '.version' charts/webapp/Chart.yaml)
-          # OCI references müssen lowercase sein; github.repository_owner behält die Original-Schreibweise.
+          # OCI references must be lowercase; github.repository_owner keeps the original casing.
           OWNER_LC=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
 
-          # Push direkt unter den User-Namespace: das resultierende Package ist
-          # ghcr.io/<owner>/<chart-name>. Nested Paths (z. B. /helm-charts/webapp)
-          # können vom GITHUB_TOKEN beim First-Push nicht auto-erstellt werden.
+          # Push directly under the user namespace: the resulting package is
+          # ghcr.io/<owner>/<chart-name>. Nested paths (e.g. /helm-charts/webapp)
+          # cannot be auto-created by the GITHUB_TOKEN on the first push.
           helm push "${CHART_NAME}-${CHART_VERSION}.tgz" "oci://ghcr.io/${OWNER_LC}"

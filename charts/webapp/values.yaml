@@ -1,12 +1,12 @@
 # =============================================================================
 # Webapp Helm Chart – Default Values
 # =============================================================================
-# Aktiviere php.enabled und/oder nodejs.enabled um die jeweilige Runtime
-# zu deployen. Mindestens eine Runtime muss aktiviert sein.
+# Enable php.enabled and/or nodejs.enabled to deploy the respective runtime.
+# At least one runtime must be enabled.
 # =============================================================================
 
 # =============================================================================
-# PHP Runtime (PHP-FPM + Nginx Sidecar)
+# PHP Runtime (PHP-FPM + Nginx sidecar)
 # =============================================================================
 php:
   enabled: false
@@ -20,13 +20,13 @@ php:
   replicaCount: 1
   revisionHistoryLimit: 5
 
-  # Pod Security Context. fsGroup MUSS zur GID passen, die das Image für
-  # /var/www/html erwartet. Für offizielle php:*-fpm Images ist das 33 (www-data).
+  # Pod security context. fsGroup MUST match the GID the image expects for
+  # /var/www/html. For the official php:*-fpm images that's 33 (www-data).
   podSecurityContext:
     fsGroup: 33
 
-  # Container Security Context für PHP-FPM. runAsUser=33 entspricht "www-data"
-  # in offiziellen php:*-fpm Images. Bei Custom-Images ggf. anpassen.
+  # Container security context for PHP-FPM. runAsUser=33 maps to "www-data"
+  # in the official php:*-fpm images. Adjust for custom images.
   securityContext:
     runAsNonRoot: true
     runAsUser: 33
@@ -47,7 +47,7 @@ php:
       cpu: 1000m
       memory: 1024Mi
 
-  # Environment Variables für den PHP-FPM Container
+  # Environment variables for the PHP-FPM container.
   env: []
     # - name: APP_ENV
     #   value: production
@@ -57,16 +57,16 @@ php:
     #       name: app-secrets
     #       key: app-key
 
-  # envFrom Quellen für PHP-FPM (zusätzlich zur root config ConfigMap, die
-  # automatisch eingebunden wird, wenn .Values.config gesetzt ist).
+  # envFrom sources for PHP-FPM (in addition to the root config ConfigMap,
+  # which is included automatically when .Values.config is set).
   envFrom: []
     # - secretRef:
     #     name: app-secrets
     # - configMapRef:
     #     name: extra-config
 
-  # PHP-FPM Konfiguration: wird als ConfigMap nach /usr/local/etc/php-fpm.d/
-  # gemountet. Keys werden zu Dateinamen.
+  # PHP-FPM configuration: rendered as a ConfigMap and mounted at
+  # /usr/local/etc/php-fpm.d/. Keys become file names.
   config: {}
     # www.conf: |
     #   [www]
@@ -74,36 +74,36 @@ php:
     #   pm.max_children = 50
     #   pm.start_servers = 5
 
-  # Applikations-Code-Quelle
+  # Application code source.
   app:
-    # "image": Code kommt aus dem PHP-Runtime-Image (Default).
-    #          Ein Init-Container kopiert /var/www/html aus dem Image in das
-    #          geteilte app-files Volume (das PHP-FPM und Nginx beide mounten).
-    # "git":   Code wird zur Pod-Start-Zeit aus einem Git-Repo geklont.
-    #          Optional läuft danach ein Build-Schritt (composer install, etc.).
+    # "image": code comes from the PHP runtime image (default).
+    #          An init container copies /var/www/html from the image into the
+    #          shared app-files volume (mounted by both PHP-FPM and Nginx).
+    # "git":   code is cloned from a Git repo at pod start.
+    #          Optionally followed by a build step (composer install, etc.).
     source: image
 
-    # Nur relevant bei source=image. Pfad innerhalb des PHP-Images, dessen
-    # Inhalt nach /var/www/html kopiert wird.
+    # Only relevant for source=image. Path inside the PHP image whose contents
+    # are copied to /var/www/html.
     imageSourceDir: /var/www/html
 
-    # Nur relevant bei source=git.
+    # Only relevant for source=git.
     git:
       image:
         repository: alpine/git
         tag: latest
         pullPolicy: IfNotPresent
-      # Repo-URL (HTTPS für öffentliche Repos, SSH für privat).
+      # Repo URL (HTTPS for public repos, SSH for private).
       url: ""
-      # Branch, Tag oder voller Commit-SHA.
+      # Branch, tag, or full commit SHA.
       ref: main
-      # 0 = full clone (notwendig für Checkout per SHA),
-      # >0 = shallow clone --depth N (schneller, nur für Branch/Tag).
+      # 0 = full clone (needed for SHA checkout),
+      # >0 = shallow clone --depth N (faster; branch/tag only).
       depth: 1
-      # Optional: nur diesen Unterordner als App-Root verwenden.
+      # Optional: use only this subdirectory as app root.
       subPath: ""
-      # Privater Repo-Zugriff per SSH-Key aus einem Secret.
-      # Beispiel-Secret:
+      # Private repo access via SSH key from a Secret.
+      # Example secret:
       #   kubectl create secret generic portfolio-ssh \
       #     --from-file=ssh-privatekey=$HOME/.ssh/id_ed25519 \
       #     --from-file=known_hosts=$HOME/.ssh/known_hosts
@@ -119,19 +119,19 @@ php:
           cpu: 500m
           memory: 256Mi
 
-    # Optionaler Build-Schritt NACH git-clone (composer install etc.).
-    # Läuft per Default im Runtime-Image (PHP-FPM); kann via build.image
-    # auf ein anderes Image (z. B. composer:latest) gezogen werden.
+    # Optional build step AFTER git-clone (composer install etc.).
+    # Runs in the runtime image by default; can be overridden via build.image
+    # to use a different image (e.g. composer:latest).
     build:
       enabled: false
-      # Falls leer: Runtime-Image (php.image) wird verwendet.
+      # If empty: the runtime image (php.image) is used.
       image:
         repository: ""
         tag: ""
         pullPolicy: IfNotPresent
-      # Wird in sh -c "..." ausgeführt; CWD = /var/www/html.
+      # Executed via sh -c "..."; CWD = /var/www/html.
       command: ""
-        # Beispiel:
+        # Example:
         # command: "composer install --no-dev --optimize-autoloader --no-interaction"
       env: []
       resources:
@@ -154,7 +154,7 @@ php:
       limits:
         cpu: 500m
         memory: 256Mi
-    # Optional: server_name in der Nginx-Config (default "_" = alle Hosts).
+    # Optional: server_name in the Nginx config (default "_" matches any host).
     serverName: "_"
 
   service:
@@ -178,7 +178,7 @@ php:
       #   hosts:
       #     - app.example.com
 
-  # HTTP Probes laufen gegen den Nginx-Sidecar (Port 80).
+  # HTTP probes run against the Nginx sidecar (port 80).
   livenessProbe:
     enabled: true
     path: /health.php
@@ -195,7 +195,7 @@ php:
     timeoutSeconds: 3
     failureThreshold: 3
 
-  # Startup Probe für langsam startende Frameworks (Laravel-Boot, Composer-Autoload).
+  # Startup probe for slow-booting frameworks (Laravel boot, Composer autoload).
   startupProbe:
     enabled: false
     path: /health.php
@@ -204,8 +204,8 @@ php:
     timeoutSeconds: 3
     failureThreshold: 30
 
-  # TCP-Probe direkt auf den PHP-FPM Worker (Port 9000), damit hängende
-  # FPM-Prozesse vom kubelet neu gestartet werden.
+  # TCP probe directly on the PHP-FPM worker (port 9000) so that hung
+  # FPM processes are restarted by the kubelet.
   fpmProbe:
     enabled: true
     initialDelaySeconds: 10
@@ -219,14 +219,14 @@ php:
     maxReplicas: 10
     targetCPUUtilizationPercentage: 80
 
-  # PodDisruptionBudget (HA gegen Node-Drains).
+  # PodDisruptionBudget (HA against node drains).
   pdb:
     enabled: false
     minAvailable: 1
     # maxUnavailable: 1
 
-  # NetworkPolicy. Wenn enabled, werden nur Pods mit den unten definierten
-  # Selektoren eingelassen. Default: leer = alle ingress erlaubt.
+  # NetworkPolicy. When enabled, only pods matching the selectors below are
+  # allowed to ingress. Default: empty = all ingress allowed.
   networkPolicy:
     enabled: false
     ingress: []
@@ -235,7 +235,7 @@ php:
       #         matchLabels:
       #           kubernetes.io/metadata.name: ingress-nginx
 
-  # Scheduling: überschreibt root-level Werte, wenn gesetzt.
+  # Scheduling: overrides root-level values when set.
   nodeSelector: {}
   tolerations: []
   affinity: {}
@@ -261,7 +261,7 @@ nodejs:
 
   port: 3000
 
-  # Custom Command (default: image ENTRYPOINT / CMD)
+  # Custom command (default: image ENTRYPOINT / CMD).
   command: []
     # - node
     # - server.js
@@ -272,8 +272,8 @@ nodejs:
   podSecurityContext:
     fsGroup: 1000
 
-  # Container Security Context. Offizielles node:*-alpine Image hat "node"
-  # mit UID 1000.
+  # Container security context. The official node:*-alpine image has "node"
+  # with UID 1000.
   securityContext:
     runAsNonRoot: true
     runAsUser: 1000
@@ -300,16 +300,16 @@ nodejs:
 
   envFrom: []
 
-  # Applikations-Code-Quelle (analog zu php.app).
+  # Application code source (analogous to php.app).
   app:
-    # "image": Code kommt aus dem Node-Runtime-Image (Default, kein Init-Container,
-    #          Container läuft direkt aus dem Image-Filesystem).
-    # "git":   Code wird zur Pod-Start-Zeit aus einem Git-Repo geklont.
-    #          Erzeugt ein zusätzliches emptyDir-Volume, das auf workingDir gemountet
-    #          und als CWD verwendet wird. Optional folgt ein npm-install-Schritt.
+    # "image": code comes from the Node runtime image (default, no init
+    #          container, the container runs straight from the image filesystem).
+    # "git":   code is cloned from a Git repo at pod start.
+    #          Adds an extra emptyDir volume mounted at workingDir and used
+    #          as CWD. Optionally followed by an npm-install step.
     source: image
 
-    # Nur relevant bei source=git: hier wird das Repo gemountet und CWD gesetzt.
+    # Only relevant for source=git: the repo is mounted here and used as CWD.
     workingDir: /app
 
     git:
@@ -341,7 +341,7 @@ nodejs:
         pullPolicy: IfNotPresent
       # CWD = nodejs.app.workingDir.
       command: ""
-        # Beispiel:
+        # Example:
         # command: "npm ci --omit=dev"
       env: []
       resources:
@@ -408,11 +408,11 @@ nodejs:
   topologySpreadConstraints: []
 
 # =============================================================================
-# Datenbank-Env-Var-Mapping
+# Database env-var mapping
 # =============================================================================
-# Steuert die Namen der DB-Environment-Variablen, die in die Runtime-Container
-# injiziert werden. Defaults sind Laravel/Symfony-Style. Für Node.js-Apps
-# können die Keys überschrieben werden (z. B. POSTGRES_HOST, DATABASE_URL).
+# Controls the names of the DB environment variables injected into the runtime
+# containers. Defaults follow Laravel/Symfony style. For Node.js apps the keys
+# can be overridden (e.g. POSTGRES_HOST, DATABASE_URL).
 # =============================================================================
 database:
   envMapping:
@@ -424,12 +424,12 @@ database:
     password: DB_PASSWORD
 
 # =============================================================================
-# Datenbank – PostgreSQL (Bitnami Sub-Chart)
+# Database – PostgreSQL (Bitnami sub-chart)
 # =============================================================================
-# Aktiviere postgresql.enabled ODER mariadb.enabled, nicht beides.
-# Doku: https://github.com/bitnami/charts/tree/main/bitnami/postgresql
+# Enable postgresql.enabled OR mariadb.enabled, not both.
+# Docs: https://github.com/bitnami/charts/tree/main/bitnami/postgresql
 #
-# Production: lieber existingSecret nutzen statt Passwörter in Values.
+# Production: prefer existingSecret over inline passwords.
 # =============================================================================
 postgresql:
   enabled: false
@@ -439,7 +439,7 @@ postgresql:
     password: ""
     database: "webapp"
     existingSecret: ""
-    # Key im existingSecret, der das User-Passwort enthält (Bitnami-Default: "password").
+    # Key inside existingSecret that holds the user password (Bitnami default: "password").
     secretKeys:
       userPasswordKey: password
   primary:
@@ -448,10 +448,10 @@ postgresql:
       size: 8Gi
 
 # =============================================================================
-# Datenbank – MariaDB (Bitnami Sub-Chart)
+# Database – MariaDB (Bitnami sub-chart)
 # =============================================================================
-# Aktiviere mariadb.enabled ODER postgresql.enabled, nicht beides.
-# Doku: https://github.com/bitnami/charts/tree/main/bitnami/mariadb
+# Enable mariadb.enabled OR postgresql.enabled, not both.
+# Docs: https://github.com/bitnami/charts/tree/main/bitnami/mariadb
 # =============================================================================
 mariadb:
   enabled: false
@@ -461,7 +461,7 @@ mariadb:
     password: ""
     database: "webapp"
     existingSecret: ""
-    # Key im existingSecret. Bitnami-Default für User-Passwort: "mariadb-password".
+    # Key inside existingSecret. Bitnami default for the user password: "mariadb-password".
     secretKeys:
       userPasswordKey: mariadb-password
   primary:
@@ -470,7 +470,7 @@ mariadb:
       size: 8Gi
 
 # =============================================================================
-# Gemeinsame Konfiguration
+# Shared configuration
 # =============================================================================
 nameOverride: ""
 fullnameOverride: ""
@@ -483,13 +483,13 @@ serviceAccount:
 
 podAnnotations: {}
 
-# Root-Scheduling (Fallback, wenn pro Runtime nichts gesetzt ist)
+# Root-level scheduling (fallback when nothing is set per runtime).
 nodeSelector: {}
 tolerations: []
 affinity: {}
 
-# Allgemeine App-Config: wird als ConfigMap erzeugt und in allen aktivierten
-# Runtimes via envFrom eingebunden. Keys sind die Env-Var-Namen.
+# Shared app config: rendered as a ConfigMap and consumed via envFrom in all
+# enabled runtimes. Keys are the env-var names.
 config: {}
   # APP_NAME: "My App"
   # LOG_LEVEL: "info"

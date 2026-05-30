@@ -1,5 +1,5 @@
 # =============================================================================
-# FluxCD HelmRepository – OCI Registry (empfohlen)
+# FluxCD HelmRepository – OCI registry (recommended)
 # =============================================================================
 apiVersion: source.toolkit.fluxcd.io/v1beta2
 kind: HelmRepository
@@ -10,12 +10,12 @@ spec:
   interval: 5m
   type: oci
   url: oci://ghcr.io/jthegunner
-  # Optional: Authentication für private Registry
+  # Optional: authentication for a private registry
   # secretRef:
   #   name: ghcr-auth
 ---
 # =============================================================================
-# Alternative: Git Repository
+# Alternative: Git repository
 # =============================================================================
 # apiVersion: source.toolkit.fluxcd.io/v1
 # kind: GitRepository

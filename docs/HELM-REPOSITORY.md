@@ -1,48 +1,48 @@
 # Helm Repository Setup
 
-## Option 1: Lokale Verwendung (Development)
+## Option 1: Local use (development)
 
-### Direkt aus dem lokalen Verzeichnis
+### Install directly from the local directory
 
 ```bash
-# Chart Dependencies aktualisieren
+# Update chart dependencies
 cd charts/webapp
 helm dependency update
 
-# Direkt installieren
+# Install directly
 helm install my-app charts/webapp \
   --set php.enabled=true \
   --set php.image.repository=jthegunner/my-php-app \
   --set php.image.tag=latest
 
-# Oder mit Values-Datei
+# Or with a values file
 helm install my-app charts/webapp -f examples/only-php.yaml
 ```
 
 ---
 
-## Option 2: OCI Registry (Production – Empfohlen)
+## Option 2: OCI registry (production — recommended)
 
-### Charts als OCI Artifacts in GitHub Container Registry
+### Charts as OCI artifacts in GitHub Container Registry
 
-#### 1. Chart packen und pushen
+#### 1. Package and push the chart
 
 ```bash
-# Login zu GitHub Container Registry
+# Log in to GitHub Container Registry
 echo $GITHUB_TOKEN | helm registry login ghcr.io -u USERNAME --password-stdin
 
-# Dependencies aktualisieren und Chart packen
+# Update dependencies and package the chart
 helm dependency update charts/webapp
 helm package charts/webapp
 
-# Pushen zu GHCR
+# Push to GHCR
 helm push webapp-1.0.0.tgz oci://ghcr.io/jthegunner
 ```
 
-#### 2. Installation aus OCI Registry
+#### 2. Install from the OCI registry
 
 ```bash
-# Helm 3.8+ unterstützt OCI nativ
+# Helm 3.8+ supports OCI natively
 helm install my-app oci://ghcr.io/jthegunner/webapp \
   --version 1.0.0 \
   -f values.yaml
@@ -50,9 +50,9 @@ helm install my-app oci://ghcr.io/jthegunner/webapp \
 
 ---
 
-## Option 3: FluxCD mit OCI Registry (GitOps – Empfohlen für Production)
+## Option 3: FluxCD with OCI registry (GitOps — recommended for production)
 
-### 1. HelmRepository erstellen
+### 1. Create a HelmRepository
 
 ```yaml
 apiVersion: source.toolkit.fluxcd.io/v1beta2
@@ -66,7 +66,7 @@ spec:
   url: oci://ghcr.io/jthegunner
 ```
 
-### 2. HelmRelease erstellen
+### 2. Create a HelmRelease
 
 ```yaml
 apiVersion: helm.toolkit.fluxcd.io/v2beta1
@@ -101,9 +101,9 @@ spec:
 
 ---
 
-## Option 4: FluxCD mit Git Repository
+## Option 4: FluxCD with a Git repository
 
-### 1. GitRepository erstellen
+### 1. Create a GitRepository
 
 ```yaml
 apiVersion: source.toolkit.fluxcd.io/v1
@@ -118,7 +118,7 @@ spec:
     branch: main
 ```
 
-### 2. HelmRelease mit Git Source
+### 2. HelmRelease with a Git source
 
 ```yaml
 apiVersion: helm.toolkit.fluxcd.io/v2beta1
@@ -146,18 +146,18 @@ spec:
 
 ---
 
-## Vergleich der Optionen
+## Comparing the options
 
-| Option | Development | Production | Komplexität |
-|--------|-------------|------------|-------------|
-| **Lokal** | ✅ Perfekt | ❌ | ⭐ Sehr einfach |
-| **OCI Registry** | ✅ Gut | ✅ Perfekt | ⭐⭐⭐ Mittel |
-| **FluxCD + OCI** | ❌ | ✅ Perfekt | ⭐⭐⭐⭐ Fortgeschritten |
-| **FluxCD + Git** | ❌ | ✅ Gut | ⭐⭐⭐ Mittel |
+| Option | Development | Production | Complexity |
+|--------|-------------|------------|------------|
+| **Local** | ✅ Perfect | ❌ | ⭐ Very simple |
+| **OCI registry** | ✅ Good | ✅ Perfect | ⭐⭐⭐ Medium |
+| **FluxCD + OCI** | ❌ | ✅ Perfect | ⭐⭐⭐⭐ Advanced |
+| **FluxCD + Git** | ❌ | ✅ Good | ⭐⭐⭐ Medium |
 
 ---
 
-## CI/CD: Automatisches Chart Publishing
+## CI/CD: automatic chart publishing
 
 **GitHub Actions: `.github/workflows/publish-charts.yaml`**
 
@@ -195,21 +195,21 @@ jobs:
 
 ## Troubleshooting
 
-### Chart nicht gefunden
+### Chart not found
 
 ```bash
-# OCI Registry direkt testen
+# Test the OCI registry directly
 helm show chart oci://ghcr.io/jthegunner/webapp
 ```
 
-### Dependencies fehlen
+### Missing dependencies
 
 ```bash
 helm dependency update charts/webapp
 helm dependency list charts/webapp
 ```
 
-### FluxCD findet Chart nicht
+### FluxCD can't find the chart
 
 ```bash
 kubectl describe helmrepository -n flux-system web-applications-charts

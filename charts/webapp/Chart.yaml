@@ -1,6 +1,6 @@
 apiVersion: v2
 name: webapp
-description: Ein universelles Helm Chart für Webapplikationen mit PHP und/oder Node.js Support inkl. optionaler Datenbank
+description: A universal Helm chart for web applications with PHP and/or Node.js support, including an optional database
 type: application
 version: 1.2.0
 appVersion: "1.2"
@@ -14,12 +14,12 @@ keywords:
   - mariadb
   - kubernetes
 
-# OCI annotations: GHCR liest org.opencontainers.image.source und linkt das
-# Package automatisch an dieses Repository (Voraussetzung dafür, dass der
-# Workflow-eigene GITHUB_TOKEN das Package neu anlegen darf).
+# OCI annotations: GHCR reads org.opencontainers.image.source and automatically
+# links the package to this repository (required so the workflow's GITHUB_TOKEN
+# is allowed to create the package on the first push).
 annotations:
   org.opencontainers.image.source: https://github.com/JtheGunner/web-applications-helm-chart
-  org.opencontainers.image.description: "Universelles Helm Chart für PHP- und Node.js-Webapplikationen mit optionaler Datenbank"
+  org.opencontainers.image.description: "Universal Helm chart for PHP and Node.js web applications with optional database"
   org.opencontainers.image.licenses: MIT
 
 dependencies:

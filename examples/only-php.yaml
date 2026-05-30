@@ -1,7 +1,7 @@
 # =============================================================================
-# Beispiel: Nur PHP mit PostgreSQL
+# Example: PHP only, with PostgreSQL
 # =============================================================================
-# Deployment: helm install my-app charts/webapp -f examples/only-php.yaml
+# Deploy: helm install my-app charts/webapp -f examples/only-php.yaml
 # =============================================================================
 
 php:

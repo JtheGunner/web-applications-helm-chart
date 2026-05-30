@@ -1,7 +1,7 @@
 # =============================================================================
-# Beispiel: Nur Node.js mit MariaDB
+# Example: Node.js only, with MariaDB
 # =============================================================================
-# Deployment: helm install my-api charts/webapp -f examples/only-node.yaml
+# Deploy: helm install my-api charts/webapp -f examples/only-node.yaml
 # =============================================================================
 
 nodejs:

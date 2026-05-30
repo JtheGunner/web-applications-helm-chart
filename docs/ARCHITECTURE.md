@@ -1,188 +1,186 @@
-# Architektur-Dokumentation
+# Architecture Documentation
 
-Dieses Dokument erklärt die Architektur-Entscheidungen des Webapp Helm Charts.
+This document explains the architecture decisions behind the webapp Helm chart.
 
-## Design-Ziele
+## Design goals
 
-1. **Ein Chart für alles** – Kein Wechsel zwischen Charts nötig
-2. **Flexibilität** – PHP, Node.js oder beides konfigurierbar
-3. **Datenbank-Integration** – PostgreSQL und MariaDB als Sub-Charts
-4. **Production-Ready** – Security, Performance und Reliability out of the box
-5. **FluxCD Integration** – GitOps-friendly mit minimaler Konfiguration
+1. **One chart for everything** – no need to switch between charts
+2. **Flexibility** – PHP, Node.js, or both, all configurable
+3. **Database integration** – PostgreSQL and MariaDB as sub-charts
+4. **Production-ready** – security, performance, and reliability out of the box
+5. **FluxCD integration** – GitOps-friendly with minimal configuration
 
-## Architektur-Entscheidungen
+## Architecture decisions
 
-### 1. Einheitliches Chart statt Library Pattern
+### 1. Unified chart instead of a library pattern
 
-**Entscheidung:** Ein einzelnes `webapp` Chart mit Feature-Toggles statt separater Charts.
+**Decision:** a single `webapp` chart with feature toggles instead of separate charts.
 
-**Begründung:**
+**Rationale:**
 
-Die Anforderung ist klar: Ein `helm install` soll reichen, um PHP und/oder Node.js mit optionaler Datenbank zu deployen. Das Library-Chart-Pattern (separate `php-webapp`, `node-webapp` Charts) erfordert mehrere Install-Befehle und macht die gemeinsame Datenbank-Nutzung umständlich.
+The requirement is clear: a single `helm install` should be enough to deploy PHP and/or Node.js with an optional database. The library-chart pattern (separate `php-webapp`, `node-webapp` charts) requires multiple install commands and makes shared database usage awkward.
 
-✅ **Lösung: Feature-Toggles**
+✅ **Solution: feature toggles**
 ```yaml
 php:
-  enabled: true      # PHP aktivieren
+  enabled: true      # enable PHP
 nodejs:
-  enabled: true      # Node.js aktivieren
+  enabled: true      # enable Node.js
 postgresql:
-  enabled: true      # PostgreSQL aktivieren
+  enabled: true      # enable PostgreSQL
 ```
 
-**Vorteile:**
-- Ein einziger `helm install` für alles
-- Gemeinsame Datenbank-Konfiguration
-- Einfaches FluxCD HelmRelease
-- Übersichtliche Values-Struktur
+**Advantages:**
+- One `helm install` for everything
+- Shared database configuration
+- Simple FluxCD HelmRelease
+- Tidy values structure
 
-**Warum kein "Conditional Hell"?**
-- Nur 2 Runtime-Typen (PHP + Node) – überschaubar
-- Die Templates sind getrennt (`deployment-php.yaml`, `deployment-node.yaml`)
-- Jede Datei hat nur ein `{{- if .Values.xxx.enabled }}` am Anfang
-- Keine verschachtelten Conditionals
+**Why no "conditional hell"?**
+- Only 2 runtime types (PHP + Node) — manageable
+- Templates are split (`deployment-php.yaml`, `deployment-node.yaml`)
+- Each file has a single `{{- if .Values.xxx.enabled }}` at the top
+- No nested conditionals
 
-### 2. Separate Deployments pro Runtime
+### 2. Separate deployments per runtime
 
-**Entscheidung:** PHP und Node.js laufen als separate Kubernetes Deployments.
+**Decision:** PHP and Node.js run as separate Kubernetes Deployments.
 
 ```
 helm install my-app charts/webapp
   │
   ├─ Deployment: my-app-webapp-php
-  │   ├─ Container: php-fpm (Port 9000)
-  │   └─ Container: nginx (Port 80)
+  │   ├─ Container: php-fpm (port 9000)
+  │   └─ Container: nginx (port 80)
   │
   ├─ Deployment: my-app-webapp-nodejs
-  │   └─ Container: nodejs (Port 3000)
+  │   └─ Container: nodejs (port 3000)
   │
-  ├─ Service: my-app-webapp-php (Port 80)
-  ├─ Service: my-app-webapp-nodejs (Port 80)
+  ├─ Service: my-app-webapp-php (port 80)
+  ├─ Service: my-app-webapp-nodejs (port 80)
   │
-  └─ StatefulSet: my-app-postgresql (via Sub-Chart)
+  └─ StatefulSet: my-app-postgresql (via sub-chart)
 ```
 
-**Vorteile:**
-- Unabhängige Skalierung (PHP und Node haben eigene HPAs)
-- Separate Resource Limits
-- Getrennte Rollouts (PHP aktualisieren ohne Node neu zu starten)
-- Separate Health Checks
+**Advantages:**
+- Independent scaling (PHP and Node each get their own HPA)
+- Separate resource limits
+- Separate rollouts (update PHP without restarting Node)
+- Separate health checks
 
-### 3. Datenbank als Bitnami Sub-Chart
+### 3. Database as a Bitnami sub-chart
 
-**Entscheidung:** PostgreSQL und MariaDB werden als Bitnami Sub-Charts eingebunden.
+**Decision:** PostgreSQL and MariaDB are pulled in as Bitnami sub-charts.
 
-**Begründung:**
-- Bitnami Charts sind battle-tested und weit verbreitet
-- Automatic Secret-Erstellung für Credentials
+**Rationale:**
+- Bitnami charts are battle-tested and widely adopted
+- Automatic secret creation for credentials
 - Persistence out of the box
-- Helm-native Lifecycle Management
+- Helm-native lifecycle management
 
-**Automatische Env-Var-Injection:**
+**Automatic env-var injection:**
 
-Bei aktivierter Datenbank werden folgende Environment-Variablen automatisch in alle Runtime-Container injiziert:
+When a database is enabled, the following environment variables are injected automatically into every runtime container:
 
 ```yaml
-DB_CONNECTION: "pgsql"          # oder "mysql"
-DB_HOST: "release-postgresql"   # aus Sub-Chart
-DB_PORT: "5432"                 # oder "3306"
-DB_DATABASE: "webapp"           # aus Values
-DB_USERNAME: "webapp"           # aus Values
-DB_PASSWORD: <secret>           # aus Bitnami Secret
+DB_CONNECTION: "pgsql"          # or "mysql"
+DB_HOST: "release-postgresql"   # from the sub-chart
+DB_PORT: "5432"                 # or "3306"
+DB_DATABASE: "webapp"           # from values
+DB_USERNAME: "webapp"           # from values
+DB_PASSWORD: <secret>           # from the Bitnami secret
 ```
 
-### 4. PHP-FPM + Nginx Sidecar
+### 4. PHP-FPM + Nginx sidecar
 
-**Entscheidung:** Sidecar-Pattern für PHP-Applikationen.
+**Decision:** sidecar pattern for PHP applications.
 
-PHP-FPM (FastCGI) kann kein HTTP direkt ausliefern. Die Lösung:
+PHP-FPM (FastCGI) cannot serve HTTP directly. The solution:
 
 ```yaml
 containers:
-  - name: php-fpm      # Port 9000 (FastCGI)
-  - name: nginx        # Port 80 (HTTP → FastCGI Proxy)
+  - name: php-fpm      # port 9000 (FastCGI)
+  - name: nginx        # port 80 (HTTP → FastCGI proxy)
 ```
 
-**Vorteile:**
-- Production-grade Performance
-- Nginx serviert statische Dateien effizient
-- Separate Resource Limits
-- Security Headers in Nginx
+**Advantages:**
+- Production-grade performance
+- Nginx serves static files efficiently
+- Separate resource limits
+- Security headers in Nginx
 
-### 5. Per-Runtime Ingress
+### 5. Per-runtime Ingress
 
-**Entscheidung:** Jede Runtime hat ihre eigene Ingress-Konfiguration.
+**Decision:** each runtime has its own Ingress configuration.
 
 ```yaml
 php:
   ingress:
     hosts:
-      - host: app.example.com     # Frontend
+      - host: app.example.com     # frontend
 nodejs:
   ingress:
     hosts:
       - host: api.example.com     # API
 ```
 
-Dies ermöglicht:
-- Verschiedene Hostnamen pro Runtime
-- Pfad-basiertes Routing auf dem gleichen Host
-- Separate TLS-Zertifikate
-- Runtime-spezifische Ingress-Annotations
+This allows:
+- Different host names per runtime
+- Path-based routing on the same host
+- Separate TLS certificates
+- Runtime-specific Ingress annotations
 
-### 6. App-Source: Image vs. Git (Runtime-Clone)
+### 6. App source: image vs. Git (runtime clone)
 
-**Entscheidung:** Per Runtime konfigurierbar, ob der App-Code aus dem
-Container-Image kommt (Default) oder zur Pod-Startzeit aus einem Git-Repo
-geklont wird.
+**Decision:** per runtime, choose whether the app code comes from the
+container image (default) or is cloned from a Git repo at pod start.
 
 ```yaml
 php:
   app:
-    source: image   # Default: Code aus dem Runtime-Image
-    # source: git   # Alternative: zur Laufzeit aus Git
+    source: image   # default: code from the runtime image
+    # source: git   # alternative: clone at runtime
 ```
 
-**Warum überhaupt Git-Source?**
+**Why offer Git source at all?**
 
-Mehrere kleine Webapps von einem einzigen Chart deployen, ohne pro App
-eine eigene Build-Pipeline pflegen zu müssen. `git push` + Pod-Restart
-genügen. Vor allem für interne/persönliche Apps interessant.
+To deploy several small webapps from a single chart without maintaining a
+build pipeline per app. `git push` + pod restart is enough. Especially
+useful for internal/personal apps.
 
-**Wie es funktioniert (source=git):**
+**How it works (source=git):**
 
-1. Volume `app-files` (emptyDir) wird angelegt und in PHP-FPM, Nginx
-   und – falls vorhanden – Build-Container gemountet.
-2. Init-Container **`git-clone`** (Image: `alpine/git`) klont das Repo
-   nach `/app-files`. Für privates Repo: SSH-Key aus einem K8s-Secret.
-3. Optionaler Init-Container **`app-build`** läuft im Runtime-Image
-   (oder einem konfigurierbaren Build-Image, z. B. `composer:2-php8.3`)
-   und führt `composer install`, `npm ci`, etc. aus.
-4. Runtime-Container (PHP-FPM, Nginx, Node) starten mit fertig
-   vorbereiteten Files.
+1. The `app-files` volume (emptyDir) is created and mounted into PHP-FPM,
+   Nginx, and — if present — the build container.
+2. Init container **`git-clone`** (image: `alpine/git`) clones the repo
+   into `/app-files`. For private repos: an SSH key from a Kubernetes Secret.
+3. Optional init container **`app-build`** runs in the runtime image
+   (or a configurable build image, e.g. `composer:2-php8.3`) and executes
+   `composer install`, `npm ci`, and so on.
+4. Runtime containers (PHP-FPM, Nginx, Node) start with the files ready.
 
 **Trade-offs:**
 
 | | source=image | source=git |
 |---|---|---|
-| Pod-Start | Sekunden | 10–60 s je nach Repo + Build |
-| Reproduzierbarkeit | Immutable Image-Tag | `git.ref` auf SHA pinnen |
-| Build-Pipeline | Pro App nötig | Nicht nötig |
-| Build-Fehler-Sichtbarkeit | In CI | Erst beim Deploy |
-| Geeignet für | Production, Skalierung | Dev, persönliche Apps, viele kleine Services |
+| Pod start | seconds | 10–60 s depending on repo + build |
+| Reproducibility | immutable image tag | pin `git.ref` to a SHA |
+| Build pipeline | one per app required | none required |
+| Build-failure visibility | in CI | only at deploy time |
+| Best for | production, scaling | dev, personal apps, many small services |
 
-**Empfehlung:** `source=image` für alles mit echtem Traffic, `source=git`
-für Convenience-Deployments. Bei Git-Mode `git.ref` auf einen Tag oder
-SHA pinnen, nicht `main` – sonst wird bei jedem Pod-Restart der aktuelle
-Branch-Head gezogen.
+**Recommendation:** `source=image` for anything with real traffic;
+`source=git` for convenience deployments. In Git mode, pin `git.ref` to a
+tag or SHA, not `main` — otherwise every pod restart pulls the current
+branch head.
 
-### 7. Security Defaults
+### 7. Security defaults
 
-**Container Security (PHP-FPM):**
+**Container security (PHP-FPM):**
 ```yaml
 securityContext:
   runAsNonRoot: true
-  runAsUser: 33     # www-data in offiziellen php:*-fpm Images
+  runAsUser: 33     # www-data in the official php:*-fpm images
   runAsGroup: 33
   allowPrivilegeEscalation: false
   capabilities:
@@ -191,62 +189,62 @@ securityContext:
     type: RuntimeDefault
 ```
 
-**Container Security (Node.js):**
+**Container security (Node.js):**
 ```yaml
 securityContext:
   runAsNonRoot: true
-  runAsUser: 1000   # "node" in offiziellen node:*-alpine Images
+  runAsUser: 1000   # "node" in the official node:*-alpine images
   runAsGroup: 1000
 ```
 
-> Bei Custom-Images sicherstellen, dass der konfigurierte UID/GID auf
-> `/var/www/html` (PHP) bzw. dem App-Working-Dir (Node) Schreibrechte hat.
-> Andernfalls `php.securityContext.runAsUser` bzw. `nodejs.securityContext.runAsUser`
-> anpassen.
+> For custom images, make sure the configured UID/GID has write
+> permissions on `/var/www/html` (PHP) or on the app working directory
+> (Node). Otherwise adjust `php.securityContext.runAsUser` or
+> `nodejs.securityContext.runAsUser`.
 
 **ServiceAccount:**
 ```yaml
-automountServiceAccountToken: false   # Auf ServiceAccount und Pod-Spec
+automountServiceAccountToken: false   # on both the ServiceAccount and the pod spec
 ```
 
-## Component Flow
+## Component flow
 
 ### PHP + Node.js + PostgreSQL
 
 ```
-User Request
+User request
     ↓
 Ingress (TLS)
-    ├─ app.example.com → Service php (Port 80)
+    ├─ app.example.com → Service php (port 80)
     │                       ↓
     │                    Pod (PHP)
-    │                    ├─ Nginx (Port 80)
-    │                    └─ PHP-FPM (Port 9000) ──→ PostgreSQL
+    │                    ├─ Nginx (port 80)
+    │                    └─ PHP-FPM (port 9000) ──→ PostgreSQL
     │
-    └─ api.example.com → Service nodejs (Port 80)
+    └─ api.example.com → Service nodejs (port 80)
                             ↓
                          Pod (Node.js)
-                         └─ Node (Port 3000) ──→ PostgreSQL
+                         └─ Node (port 3000) ──→ PostgreSQL
 ```
 
-## Validierung
+## Validation
 
-Das Chart validiert die Eingaben:
-- Mindestens eine Runtime muss aktiviert sein (`php.enabled` oder `nodejs.enabled`)
-- Nur eine Datenbank kann gleichzeitig aktiviert werden
+The chart validates inputs:
+- At least one runtime must be enabled (`php.enabled` or `nodejs.enabled`)
+- Only one database can be enabled at a time
 
 ```bash
-# Ohne Runtime → Fehler
+# No runtime → error
 helm template test charts/webapp
-# FEHLER: Mindestens eine Runtime muss aktiviert sein.
+# ERROR: at least one runtime must be enabled.
 
-# Beide DBs → Fehler
+# Both DBs → error
 helm template test charts/webapp \
   --set php.enabled=true --set php.image.repository=test \
   --set postgresql.enabled=true --set mariadb.enabled=true
-# FEHLER: Nur eine Datenbank kann gleichzeitig aktiviert werden.
+# ERROR: only one database can be enabled at a time.
 
-# Image fehlt → required-Fehler
+# Missing image → required-error
 helm template test charts/webapp --set php.enabled=true
 # Error: php.image.repository is required when php.enabled=true
 ```
@@ -257,17 +255,17 @@ helm template test charts/webapp --set php.enabled=true
 # Lint
 helm lint charts/webapp --set php.enabled=true --set php.image.repository=test
 
-# Template rendern (funktionierendes Minimal-Setup)
+# Render templates (working minimal setup)
 helm template test charts/webapp \
   --set php.enabled=true \
   --set php.image.repository=jthegunner/my-php-app \
   --set php.image.tag=v1.0.0
 
-# Vollständiges Setup mit Beispiel-Values
+# Full setup with example values
 helm dependency update charts/webapp
 helm template test charts/webapp -f examples/php-and-node.yaml
 
-# Dry-Run gegen einen echten Cluster
+# Dry run against a real cluster
 helm install test charts/webapp --dry-run \
   --set php.enabled=true \
   --set php.image.repository=jthegunner/my-php-app
@@ -275,4 +273,4 @@ helm install test charts/webapp --dry-run \
 
 ---
 
-**Last Updated:** 2026-04-11
+**Last updated:** 2026-04-11

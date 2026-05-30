@@ -65,7 +65,7 @@ spec:
 
       initContainers:
         {{- if eq .Values.php.app.source "image" }}
-        # Code aus dem Runtime-Image in das geteilte Volume kopieren.
+        # Copy the app code from the runtime image into the shared volume.
         - name: copy-app
           image: "{{ include "webapp.php.image" . }}"
           imagePullPolicy: {{ include "webapp.php.imagePullPolicy" . }}
@@ -83,7 +83,7 @@ spec:
             - name: app-files
               mountPath: /app-files
         {{- else if eq .Values.php.app.source "git" }}
-        # Repo zur Pod-Startzeit ins geteilte Volume klonen.
+        # Clone the repo into the shared volume at pod start.
         - name: git-clone
           image: "{{ .Values.php.app.git.image.repository }}:{{ .Values.php.app.git.image.tag }}"
           imagePullPolicy: {{ .Values.php.app.git.image.pullPolicy }}
@@ -114,7 +114,7 @@ spec:
                 touch /tmp/.ssh/known_hosts
               fi
               {{- end }}
-              # Re-Clone-sicher: Ziel leeren (auch versteckte Dateien).
+              # Safe re-clone: empty the target (including hidden files).
               find /app-files -mindepth 1 -delete
               {{- if eq (int (.Values.php.app.git.depth | default 1)) 0 }}
               git clone {{ .Values.php.app.git.url }} /tmp/repo
@@ -139,7 +139,7 @@ spec:
           resources:
             {{- toYaml .Values.php.app.git.resources | nindent 12 }}
         {{- if .Values.php.app.build.enabled }}
-        # Build-Schritt (composer install etc.) im Runtime- oder Build-Image.
+        # Build step (composer install etc.) in the runtime or build image.
         - name: app-build
           image: {{ if .Values.php.app.build.image.repository -}}
                    "{{ .Values.php.app.build.image.repository }}:{{ .Values.php.app.build.image.tag }}"

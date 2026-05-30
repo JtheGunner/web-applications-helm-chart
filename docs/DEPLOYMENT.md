@@ -1,46 +1,46 @@
 # Deployment Guide
 
-Anleitung für das Deployment von Webapplikationen mit dem Webapp Helm Chart.
+How to deploy web applications with the webapp Helm chart.
 
-## Inhaltsverzeichnis
+## Table of contents
 
-- [Voraussetzungen](#voraussetzungen)
-- [Lokale Entwicklung](#lokale-entwicklung)
-- [Production Deployment](#production-deployment)
-- [FluxCD Integration](#fluxcd-integration)
+- [Prerequisites](#prerequisites)
+- [Local development](#local-development)
+- [Production deployment](#production-deployment)
+- [FluxCD integration](#fluxcd-integration)
 - [Troubleshooting](#troubleshooting)
 
-## Voraussetzungen
+## Prerequisites
 
-### Benötigte Tools
+### Required tools
 
-- **Kubernetes Cluster** (1.19+)
+- **Kubernetes cluster** (1.19+)
 - **Helm** (3.8+)
-- **kubectl** (mit Cluster-Zugang konfiguriert)
-- **Docker** (zum Bauen der Images)
+- **kubectl** (configured with cluster access)
+- **Docker** (for building images)
 
-### Optionale Tools
+### Optional tools
 
-- **FluxCD** (für GitOps Deployments)
-- **cert-manager** (für automatische TLS-Zertifikate)
+- **FluxCD** (for GitOps deployments)
+- **cert-manager** (for automatic TLS certificates)
 
-### Cluster-Anforderungen
+### Cluster requirements
 
-- **Ingress Controller** (nginx, traefik, etc.)
-- **Storage Class** (für Datenbank Persistence)
+- **Ingress controller** (nginx, traefik, etc.)
+- **Storage class** (for database persistence)
 
-## Lokale Entwicklung
+## Local development
 
-### 1. Chart Dependencies aktualisieren
+### 1. Update chart dependencies
 
 ```bash
 cd charts/webapp
 helm dependency update
 ```
 
-### 2. Chart installieren
+### 2. Install the chart
 
-**PHP Applikation:**
+**PHP application:**
 ```bash
 helm install my-app charts/webapp \
   --set php.enabled=true \
@@ -48,7 +48,7 @@ helm install my-app charts/webapp \
   --set php.image.tag=dev
 ```
 
-**Node.js Applikation:**
+**Node.js application:**
 ```bash
 helm install my-api charts/webapp \
   --set nodejs.enabled=true \
@@ -57,15 +57,15 @@ helm install my-api charts/webapp \
   --set nodejs.port=3000
 ```
 
-**Mit Values-Datei:**
+**With a values file:**
 ```bash
 helm install my-app charts/webapp -f examples/only-php.yaml
 ```
 
-### 3. Deployment prüfen
+### 3. Check the deployment
 
 ```bash
-# Pods anzeigen
+# Show pods
 kubectl get pods -l app.kubernetes.io/instance=my-app
 
 # Logs (PHP)
@@ -75,15 +75,15 @@ kubectl logs <pod-name> -c nginx
 # Logs (Node.js)
 kubectl logs <pod-name> -c nodejs
 
-# Port-Forward zum Testen
+# Port-forward for local testing
 kubectl port-forward svc/my-app-webapp-php 8080:80
 curl http://localhost:8080
 ```
 
-### 4. Lokale Datenbank
+### 4. Local database
 
 ```bash
-# Mit PostgreSQL
+# With PostgreSQL
 helm install my-app charts/webapp \
   --set php.enabled=true \
   --set php.image.repository=my-app \
@@ -92,13 +92,13 @@ helm install my-app charts/webapp \
   --set postgresql.auth.password=localdev \
   --set postgresql.auth.database=myapp_dev
 
-# DB-Verbindung prüfen
+# Check the DB connection
 kubectl exec -it <php-pod> -c php-fpm -- env | grep DB_
 ```
 
-## Production Deployment
+## Production deployment
 
-### 1. Production Values erstellen
+### 1. Create production values
 
 ```yaml
 # values-production.yaml
@@ -158,26 +158,26 @@ postgresql:
       size: 50Gi
 ```
 
-### 2. Deployen
+### 2. Deploy
 
 ```bash
-# Namespace erstellen
+# Create the namespace
 kubectl create namespace production
 
-# Image Pull Secret erstellen
+# Create the image pull secret
 kubectl create secret docker-registry ghcr-credentials \
   --docker-server=ghcr.io \
   --docker-username=jthegunner \
   --docker-password=$GITHUB_TOKEN \
   -n production
 
-# Deployment
+# Deploy
 helm install my-app charts/webapp \
   -f values-production.yaml \
   -n production
 ```
 
-### 3. Verifizieren
+### 3. Verify
 
 ```bash
 kubectl get all -n production -l app.kubernetes.io/instance=my-app
@@ -185,9 +185,9 @@ kubectl get ingress -n production
 curl https://app.example.com/health.php
 ```
 
-## FluxCD Integration
+## FluxCD integration
 
-### 1. HelmRepository erstellen
+### 1. Create a HelmRepository
 
 ```yaml
 apiVersion: source.toolkit.fluxcd.io/v1beta2
@@ -201,7 +201,7 @@ spec:
   url: oci://ghcr.io/jthegunner
 ```
 
-### 2. HelmRelease erstellen
+### 2. Create a HelmRelease
 
 ```yaml
 apiVersion: helm.toolkit.fluxcd.io/v2beta1
@@ -244,19 +244,19 @@ flux reconcile helmrelease my-app -n production
 
 ## Troubleshooting
 
-### Pods starten nicht
+### Pods don't start
 
 ```bash
 kubectl get pods -n <namespace>
 kubectl describe pod <pod-name> -n <namespace>
 ```
 
-**Häufige Ursachen:**
-- Image Pull Error → Image-Name und Pull Secrets prüfen
-- CrashLoopBackOff → Application Logs prüfen
-- Pending → Cluster-Resourcen prüfen
+**Common causes:**
+- Image pull error → check the image name and pull secrets
+- CrashLoopBackOff → check the application logs
+- Pending → check cluster resources
 
-### Health Check Fehler
+### Health-check errors
 
 ```bash
 kubectl port-forward <pod-name> 8080:80
@@ -264,26 +264,26 @@ curl http://localhost:8080/health.php   # PHP
 curl http://localhost:3000/health       # Node.js
 ```
 
-### Datenbank-Verbindung
+### Database connectivity
 
 ```bash
-# Env-Vars prüfen
+# Check env vars
 kubectl exec -it <pod-name> -c php-fpm -- env | grep DB_
 
-# PostgreSQL Zugang testen
+# Test PostgreSQL access
 kubectl exec -it <release>-postgresql-0 -- psql -U webapp -d webapp
 ```
 
-### Rolling Back
+### Rolling back
 
 ```bash
-# Helm History
+# Helm history
 helm history <release-name> -n <namespace>
 
-# Rollback
+# Roll back
 helm rollback <release-name> -n <namespace>
 ```
 
 ---
 
-**Weitere Infos:** Siehe [ARCHITECTURE.md](ARCHITECTURE.md)
+**More info:** see [ARCHITECTURE.md](ARCHITECTURE.md)

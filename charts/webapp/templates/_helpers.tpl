@@ -163,7 +163,7 @@ seccompProfile:
 {{- end }}
 
 {{/*
-Database environment variables – injected into PHP and Node containers
+Database environment variables — injected into PHP and Node containers
 when a database sub-chart is enabled. Honors auth.existingSecret.
 */}}
 {{- define "webapp.databaseEnvVars" -}}

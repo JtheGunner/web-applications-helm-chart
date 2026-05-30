@@ -1,76 +1,76 @@
 # Web Applications Helm Chart
 
-Ein universelles Helm Chart für das Deployment von PHP und/oder Node.js Webapplikationen auf Kubernetes mit optionaler Datenbank-Unterstützung (PostgreSQL, MariaDB).
+A universal Helm chart for deploying PHP and/or Node.js web applications on Kubernetes with optional database support (PostgreSQL, MariaDB).
 
 ## 🎯 Features
 
-- **Ein Chart für alles** – PHP, Node.js oder beides gleichzeitig per Values steuern
-- **App aus Image *oder* Git** – `app.source: image` (Default) oder `app.source: git` mit optionalem Build-Schritt (composer install, npm ci)
-- **Datenbank-Support** – PostgreSQL und MariaDB als optionale Sub-Charts (Bitnami), `existingSecret` unterstützt
-- **PHP-FPM + Nginx + Init-Container** – Production-grade PHP Deployment mit korrekt geteiltem App-Volume
-- **Separate Deployments** – PHP und Node.js skalieren unabhängig voneinander
-- **Production-Ready Security** – Non-root Users, Capability Drops, seccomp, Security Headers
-- **Health Checks** – Liveness, Readiness und Startup Probes; TCP-Probe direkt auf PHP-FPM
-- **Autoscaling, PDB & NetworkPolicy** – HPA, PodDisruptionBudget und NetworkPolicy pro Runtime
-- **HA-Scheduling** – `topologySpreadConstraints`, `affinity`, `tolerations` pro Runtime
-- **FluxCD Ready** – GitOps-friendly mit minimaler Konfiguration
+- **One chart for everything** – run PHP, Node.js, or both at the same time, switched by values
+- **App from image *or* Git** – `app.source: image` (default) or `app.source: git` with an optional build step (composer install, npm ci)
+- **Database support** – PostgreSQL and MariaDB as optional sub-charts (Bitnami), with `existingSecret` supported
+- **PHP-FPM + Nginx + init container** – production-grade PHP deployment with a correctly shared app volume
+- **Separate deployments** – PHP and Node.js scale independently
+- **Production-ready security** – non-root users, capability drops, seccomp, security headers
+- **Health checks** – liveness, readiness, and startup probes; TCP probe directly on PHP-FPM
+- **Autoscaling, PDB & NetworkPolicy** – HPA, PodDisruptionBudget, and NetworkPolicy per runtime
+- **HA scheduling** – `topologySpreadConstraints`, `affinity`, `tolerations` per runtime
+- **FluxCD ready** – GitOps-friendly with minimal configuration
 
-## 📁 Repository Struktur
+## 📁 Repository structure
 
 ```
 web-applications-helm-chart/
 ├── charts/
-│   └── webapp/                     # Das einheitliche Helm Chart
-│       ├── Chart.yaml                  # Chart-Definition + DB Dependencies
-│       ├── values.yaml                 # Alle konfigurierbaren Values
+│   └── webapp/                         # The unified Helm chart
+│       ├── Chart.yaml                  # Chart definition + DB dependencies
+│       ├── values.yaml                 # All configurable values
 │       └── templates/
-│           ├── _helpers.tpl            # Name, Label, Image, envFrom Helpers
-│           ├── validate.yaml           # Input-Validierung (Runtime/DB)
-│           ├── deployment-php.yaml     # PHP-FPM + Nginx + Init-Container
+│           ├── _helpers.tpl            # Name, label, image, envFrom helpers
+│           ├── validate.yaml           # Input validation (runtime/DB)
+│           ├── deployment-php.yaml     # PHP-FPM + Nginx + init container
 │           ├── deployment-node.yaml    # Node.js
 │           ├── service-php.yaml        # PHP Service
 │           ├── service-node.yaml       # Node Service
 │           ├── ingress-php.yaml        # PHP Ingress
 │           ├── ingress-node.yaml       # Node Ingress
-│           ├── nginx-config.yaml       # Nginx Config für PHP-FPM
-│           ├── configmap.yaml          # Root-App-Konfiguration (envFrom)
-│           ├── configmap-php-fpm.yaml  # PHP-FPM Tuning (www.conf etc.)
-│           ├── hpa-php.yaml            # HPA für PHP
-│           ├── hpa-node.yaml           # HPA für Node.js
+│           ├── nginx-config.yaml       # Nginx config for PHP-FPM
+│           ├── configmap.yaml          # Root app configuration (envFrom)
+│           ├── configmap-php-fpm.yaml  # PHP-FPM tuning (www.conf etc.)
+│           ├── hpa-php.yaml            # HPA for PHP
+│           ├── hpa-node.yaml           # HPA for Node.js
 │           ├── pdb-php.yaml            # PodDisruptionBudget PHP
 │           ├── pdb-node.yaml           # PodDisruptionBudget Node.js
 │           ├── networkpolicy-php.yaml  # NetworkPolicy PHP
 │           ├── networkpolicy-node.yaml # NetworkPolicy Node.js
 │           ├── serviceaccount.yaml     # ServiceAccount
-│           └── NOTES.txt               # Helm install Output
+│           └── NOTES.txt               # Helm install output
 │
 ├── examples/
-│   ├── only-php.yaml              # Nur PHP + PostgreSQL
-│   ├── only-node.yaml             # Nur Node.js + MariaDB
-│   ├── php-and-node.yaml          # Beides + PostgreSQL
-│   ├── no-database.yaml           # Ohne Datenbank
-│   ├── php-app/                   # Beispiel PHP Applikation
-│   ├── node-app/                  # Beispiel Node.js Applikation
-│   └── flux/                      # FluxCD Beispiele
+│   ├── only-php.yaml              # PHP only + PostgreSQL
+│   ├── only-node.yaml             # Node.js only + MariaDB
+│   ├── php-and-node.yaml          # Both + PostgreSQL
+│   ├── no-database.yaml           # No database
+│   ├── php-app/                   # Sample PHP application
+│   ├── node-app/                  # Sample Node.js application
+│   └── flux/                      # FluxCD examples
 │
 └── docs/
-    ├── ARCHITECTURE.md            # Architektur-Entscheidungen
-    ├── DEPLOYMENT.md              # Deployment-Anleitung
-    └── HELM-REPOSITORY.md         # Helm Repository Setup
+    ├── ARCHITECTURE.md            # Architecture decisions
+    ├── DEPLOYMENT.md              # Deployment guide
+    └── HELM-REPOSITORY.md         # Helm repository setup
 ```
 
-## 🚀 Quick Start
+## 🚀 Quick start
 
-### 1. Dependencies aktualisieren
+### 1. Update dependencies
 
 ```bash
 cd charts/webapp
 helm dependency update
 ```
 
-### 2. Chart installieren
+### 2. Install the chart
 
-**Nur PHP:**
+**PHP only:**
 ```bash
 helm install my-app charts/webapp \
   --set php.enabled=true \
@@ -78,7 +78,7 @@ helm install my-app charts/webapp \
   --set php.image.tag=v1.0.0
 ```
 
-**Nur Node.js:**
+**Node.js only:**
 ```bash
 helm install my-api charts/webapp \
   --set nodejs.enabled=true \
@@ -91,9 +91,9 @@ helm install my-api charts/webapp \
 helm install my-app charts/webapp -f examples/php-and-node.yaml
 ```
 
-### 3. Deploy mit FluxCD (Production)
+### 3. Deploy with FluxCD (production)
 
-Siehe [examples/flux/](examples/flux/) für vollständige FluxCD HelmRelease Beispiele.
+See [examples/flux/](examples/flux/) for full FluxCD HelmRelease examples.
 
 ```yaml
 apiVersion: helm.toolkit.fluxcd.io/v2beta1
@@ -122,59 +122,59 @@ spec:
         password: changeme
 ```
 
-## 📦 Konfiguration
+## 📦 Configuration
 
-### Runtime-Auswahl
+### Runtime selection
 
-| Parameter | Beschreibung | Default |
+| Parameter | Description | Default |
 |-----------|-------------|---------|
-| `php.enabled` | PHP Runtime aktivieren | `false` |
-| `nodejs.enabled` | Node.js Runtime aktivieren | `false` |
+| `php.enabled` | Enable the PHP runtime | `false` |
+| `nodejs.enabled` | Enable the Node.js runtime | `false` |
 
-### Datenbank
+### Database
 
-| Parameter | Beschreibung | Default |
+| Parameter | Description | Default |
 |-----------|-------------|---------|
-| `postgresql.enabled` | PostgreSQL Sub-Chart aktivieren | `false` |
-| `mariadb.enabled` | MariaDB Sub-Chart aktivieren | `false` |
+| `postgresql.enabled` | Enable the PostgreSQL sub-chart | `false` |
+| `mariadb.enabled` | Enable the MariaDB sub-chart | `false` |
 
-> **Hinweis:** Es kann nur eine Datenbank gleichzeitig aktiviert werden.
+> **Note:** Only one database can be enabled at a time.
 
-Die Datenbank-Verbindungsdaten werden automatisch als Environment-Variablen in alle aktivierten Runtimes injiziert:
-- `DB_CONNECTION` – Datenbanktyp (`pgsql` oder `mysql`)
-- `DB_HOST` – Hostname
-- `DB_PORT` – Port
-- `DB_DATABASE` – Datenbankname
-- `DB_USERNAME` – Benutzername
-- `DB_PASSWORD` – Passwort (aus Secret)
+Database connection details are injected automatically as environment variables into every enabled runtime:
+- `DB_CONNECTION` – database type (`pgsql` or `mysql`)
+- `DB_HOST` – host name
+- `DB_PORT` – port
+- `DB_DATABASE` – database name
+- `DB_USERNAME` – user name
+- `DB_PASSWORD` – password (from a Secret)
 
-### PHP Konfiguration
+### PHP configuration
 
-| Parameter | Beschreibung | Default |
+| Parameter | Description | Default |
 |-----------|-------------|---------|
-| `php.image.repository` | PHP Image | `""` |
-| `php.image.tag` | Image Tag | `latest` |
-| `php.replicaCount` | Anzahl Replicas | `1` |
-| `php.resources` | Resource Limits | `200m/256Mi` |
-| `php.nginx.image.tag` | Nginx Sidecar Version | `1.27-alpine` |
-| `php.ingress.enabled` | Ingress aktivieren | `false` |
-| `php.autoscaling.enabled` | HPA aktivieren | `false` |
+| `php.image.repository` | PHP image | `""` |
+| `php.image.tag` | Image tag | `latest` |
+| `php.replicaCount` | Number of replicas | `1` |
+| `php.resources` | Resource limits | `200m/256Mi` |
+| `php.nginx.image.tag` | Nginx sidecar version | `1.27-alpine` |
+| `php.ingress.enabled` | Enable Ingress | `false` |
+| `php.autoscaling.enabled` | Enable HPA | `false` |
 
-### Node.js Konfiguration
+### Node.js configuration
 
-| Parameter | Beschreibung | Default |
+| Parameter | Description | Default |
 |-----------|-------------|---------|
-| `nodejs.image.repository` | Node.js Image | `""` |
-| `nodejs.image.tag` | Image Tag | `latest` |
-| `nodejs.port` | Application Port | `3000` |
-| `nodejs.replicaCount` | Anzahl Replicas | `1` |
-| `nodejs.resources` | Resource Limits | `100m/128Mi` |
-| `nodejs.ingress.enabled` | Ingress aktivieren | `false` |
-| `nodejs.autoscaling.enabled` | HPA aktivieren | `false` |
+| `nodejs.image.repository` | Node.js image | `""` |
+| `nodejs.image.tag` | Image tag | `latest` |
+| `nodejs.port` | Application port | `3000` |
+| `nodejs.replicaCount` | Number of replicas | `1` |
+| `nodejs.resources` | Resource limits | `100m/128Mi` |
+| `nodejs.ingress.enabled` | Enable Ingress | `false` |
+| `nodejs.autoscaling.enabled` | Enable HPA | `false` |
 
-## 🔧 Verwendungsbeispiele
+## 🔧 Usage examples
 
-### Nur PHP mit PostgreSQL
+### PHP only with PostgreSQL
 
 ```yaml
 php:
@@ -194,7 +194,7 @@ postgresql:
     database: "myapp"
 ```
 
-### PHP + Node.js (Frontend + API)
+### PHP + Node.js (frontend + API)
 
 ```yaml
 php:
@@ -231,29 +231,29 @@ postgresql:
     password: changeme
 ```
 
-## 🛡️ Security Features
+## 🛡️ Security features
 
-- **Non-root Container** – Alle Container laufen als UID 1000
-- **Capability Dropping** – Minimale Linux Capabilities
-- **Security Headers** – X-Frame-Options, X-Content-Type-Options (PHP/Nginx)
-- **Resource Limits** – CPU und Memory Constraints
-- **ServiceAccount Token** – Automount deaktiviert
+- **Non-root containers** – all containers run as a non-root UID (PHP-FPM: 33, Node.js: 1000)
+- **Capability dropping** – minimal Linux capabilities
+- **Security headers** – X-Frame-Options, X-Content-Type-Options (PHP/Nginx)
+- **Resource limits** – CPU and memory constraints
+- **ServiceAccount token** – automount disabled
 
-## 📚 Dokumentation
+## 📚 Documentation
 
-- **[Architektur](docs/ARCHITECTURE.md)** – Design-Entscheidungen
-- **[Deployment Guide](docs/DEPLOYMENT.md)** – Deployment-Anleitung
-- **[Helm Repository Setup](docs/HELM-REPOSITORY.md)** – Repository-Optionen
+- **[Architecture](docs/ARCHITECTURE.md)** – design decisions
+- **[Deployment Guide](docs/DEPLOYMENT.md)** – step-by-step deployment instructions
+- **[Helm Repository Setup](docs/HELM-REPOSITORY.md)** – repository options
 
 ## 🤝 Contributing
 
-1. Fork des Repositories
-2. Feature Branch erstellen
-3. Änderungen vornehmen
-4. Testen mit `helm lint` und `helm template`
-5. Pull Request erstellen
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test with `helm lint` and `helm template`
+5. Open a pull request
 
-## 📝 Lizenz
+## 📝 License
 
 MIT License
 

@@ -2,7 +2,7 @@
  🚀 {{ include "webapp.fullname" . }} deployed!
 ============================================================
 
-Aktivierte Runtimes:
+Active runtimes:
 {{- if .Values.php.enabled }}
   ✅ PHP ({{ include "webapp.php.image" . }})
      Deployment: {{ include "webapp.fullname" . }}-php
@@ -16,7 +16,7 @@ Aktivierte Runtimes:
 
 {{- if or .Values.postgresql.enabled .Values.mariadb.enabled }}
 
-Datenbank:
+Database:
 {{- if .Values.postgresql.enabled }}
   ✅ PostgreSQL
      Host:     {{ .Release.Name }}-postgresql
@@ -49,6 +49,6 @@ Node.js Ingress:
 {{- end }}
 {{- end }}
 
-Nützliche Befehle:
+Useful commands:
   kubectl get pods -l app.kubernetes.io/instance={{ .Release.Name }}
   kubectl get svc -l app.kubernetes.io/instance={{ .Release.Name }}
