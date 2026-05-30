@@ -156,10 +156,20 @@ spec:
           securityContext:
             {{- toYaml .Values.php.securityContext | nindent 12 }}
           workingDir: /var/www/html
-          {{- with .Values.php.app.build.env }}
           env:
+            # Inject git's safe.directory='*' via env vars. This works
+            # even when the build container's UID lacks a writable HOME
+            # (composer image runs build as UID 33 with no /etc/passwd
+            # entry), unlike `git config --global ...` which silently fails.
+            - name: GIT_CONFIG_COUNT
+              value: "1"
+            - name: GIT_CONFIG_KEY_0
+              value: "safe.directory"
+            - name: GIT_CONFIG_VALUE_0
+              value: "*"
+            {{- with .Values.php.app.build.env }}
             {{- toYaml . | nindent 12 }}
-          {{- end }}
+            {{- end }}
           command:
             - sh
             - -c

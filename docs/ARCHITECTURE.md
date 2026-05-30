@@ -157,16 +157,17 @@ useful for internal/personal apps.
 3. Init container **`app-build`** runs the build step.
    For **PHP**, this is enabled by default and runs (in the `composer:2` image):
    ```
-   git config --global --add safe.directory '*' \
-     && composer install --no-dev --optimize-autoloader \
-        --no-interaction --ignore-platform-reqs
+   composer install --no-dev --optimize-autoloader \
+     --no-interaction --ignore-platform-reqs
    ```
-   The `safe.directory` line avoids "dubious ownership" errors when the
-   build container's UID differs from git-clone's. `--ignore-platform-reqs`
-   is needed because the slim composer image lacks extensions like
-   `ext-intl` that apps usually require — those must instead be present in
-   the RUNTIME PHP-FPM image. For **Node.js**, build is opt-in
-   (`nodejs.app.build.enabled: true` + a `command`).
+   The chart injects `safe.directory='*'` into git via the
+   `GIT_CONFIG_COUNT/KEY_0/VALUE_0` env vars on the build container, so
+   any git invocation (composer's, npm's, your own) ignores the
+   "dubious ownership" check without needing a writable `$HOME`.
+   `--ignore-platform-reqs` is needed because the slim composer image
+   lacks extensions like `ext-intl` that apps usually require — those
+   must instead be present in the RUNTIME PHP-FPM image. For **Node.js**,
+   build is opt-in (`nodejs.app.build.enabled: true` + a `command`).
 4. Runtime containers (PHP-FPM, Nginx, Node) start with the files ready.
 
 **Trade-offs:**

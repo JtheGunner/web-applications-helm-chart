@@ -117,10 +117,19 @@ spec:
           securityContext:
             {{- toYaml .Values.nodejs.securityContext | nindent 12 }}
           workingDir: {{ .Values.nodejs.app.workingDir }}
-          {{- with .Values.nodejs.app.build.env }}
           env:
+            # Inject git's safe.directory='*' via env vars so npm/pnpm
+            # invocations of git don't fail with "dubious ownership"
+            # when the build container's UID differs from git-clone's.
+            - name: GIT_CONFIG_COUNT
+              value: "1"
+            - name: GIT_CONFIG_KEY_0
+              value: "safe.directory"
+            - name: GIT_CONFIG_VALUE_0
+              value: "*"
+            {{- with .Values.nodejs.app.build.env }}
             {{- toYaml . | nindent 12 }}
-          {{- end }}
+            {{- end }}
           command:
             - sh
             - -c
