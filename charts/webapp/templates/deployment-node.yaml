@@ -43,20 +43,21 @@ spec:
         - name: git-ssh
           secret:
             secretName: {{ .Values.nodejs.app.git.sshSecret.name }}
-            defaultMode: 256  # 0400
+            # 0440 so the file is readable by the pod's fsGroup. The
+            # git-clone container copies it to /tmp/.ssh/id with chmod 600
+            # before invoking SSH, so OpenSSH never sees this mode directly.
+            defaultMode: 288  # 0440
         {{- end }}
 
       initContainers:
+        # Runs as the same UID as the runtime/build containers so that
+        # files cloned here are owned by the same user that later runs
+        # npm/node — avoids git's "dubious ownership" check.
         - name: git-clone
           image: "{{ .Values.nodejs.app.git.image.repository }}:{{ .Values.nodejs.app.git.image.tag }}"
           imagePullPolicy: {{ .Values.nodejs.app.git.image.pullPolicy }}
           securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop: ["ALL"]
-            readOnlyRootFilesystem: false
-            seccompProfile:
-              type: RuntimeDefault
+            {{- toYaml .Values.nodejs.securityContext | nindent 12 }}
           {{- if .Values.nodejs.app.git.sshSecret.name }}
           env:
             - name: GIT_SSH_COMMAND

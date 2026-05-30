@@ -60,7 +60,10 @@ spec:
         - name: git-ssh
           secret:
             secretName: {{ .Values.php.app.git.sshSecret.name }}
-            defaultMode: 256  # 0400
+            # 0440 so the file is readable by the pod's fsGroup. The
+            # git-clone container copies it to /tmp/.ssh/id with chmod 600
+            # before invoking SSH, so OpenSSH never sees this mode directly.
+            defaultMode: 288  # 0440
         {{- end }}
 
       initContainers:
@@ -84,16 +87,14 @@ spec:
               mountPath: /app-files
         {{- else if eq .Values.php.app.source "git" }}
         # Clone the repo into the shared volume at pod start.
+        # Runs as the same UID as the build/runtime containers so that
+        # files cloned here are owned by the same user that later runs
+        # composer/php-fpm — avoids git's "dubious ownership" check.
         - name: git-clone
           image: "{{ .Values.php.app.git.image.repository }}:{{ .Values.php.app.git.image.tag }}"
           imagePullPolicy: {{ .Values.php.app.git.image.pullPolicy }}
           securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop: ["ALL"]
-            readOnlyRootFilesystem: false
-            seccompProfile:
-              type: RuntimeDefault
+            {{- toYaml .Values.php.securityContext | nindent 12 }}
           {{- if .Values.php.app.git.sshSecret.name }}
           env:
             - name: GIT_SSH_COMMAND
