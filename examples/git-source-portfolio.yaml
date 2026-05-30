@@ -1,8 +1,8 @@
 # =============================================================================
 # Example: deploy a PHP app directly from a Git repo
 # =============================================================================
-# Clones the portfolio repo at pod start, runs composer install in a build
-# image, and serves it with PHP-FPM + Nginx.
+# Clones the portfolio repo at pod start, runs composer install (chart default
+# for PHP), and serves it with PHP-FPM + Nginx.
 #
 # Deploy: helm install portfolio charts/webapp -f examples/git-source-portfolio.yaml
 #
@@ -16,8 +16,8 @@ php:
   enabled: true
 
   # Runtime image: PHP-FPM for request handling.
-  # The official image does NOT include composer — that's why the build step
-  # below runs in a separate composer image.
+  # The official image does NOT include composer — but the chart's build step
+  # uses the composer:2-php8.3 image by default, so this works out of the box.
   image:
     repository: php
     tag: "8.3-fpm-alpine"
@@ -44,19 +44,14 @@ php:
       # url: git@github.com:JtheGunner/portfolio.git
       # sshSecret:
       #   name: portfolio-ssh
+      #   # privateKeyKey: ssh-privatekey   # default — only set if you renamed it
+      #   # knownHostsKey: known_hosts      # default — only set if you renamed it
 
-    # composer install after cloning, in the official composer image.
-    build:
-      enabled: true
-      image:
-        repository: composer
-        tag: "2-php8.3"
-        pullPolicy: IfNotPresent
-      command: "composer install --no-dev --optimize-autoloader --no-interaction"
-      resources:
-        limits:
-          cpu: 1000m
-          memory: 1Gi
+    # Build step defaults (already enabled for PHP):
+    #   image:   composer:2-php8.3
+    #   command: composer install --no-dev --optimize-autoloader --no-interaction
+    # Override here if your app needs something different, or set
+    # build.enabled: false to skip it entirely.
 
   # Env vars for the app (override the .env from the repo).
   env:

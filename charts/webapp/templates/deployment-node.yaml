@@ -68,11 +68,13 @@ spec:
             - |
               set -e
               {{- if .Values.nodejs.app.git.sshSecret.name }}
+              {{- $pkKey := .Values.nodejs.app.git.sshSecret.privateKeyKey | default "ssh-privatekey" }}
+              {{- $khKey := .Values.nodejs.app.git.sshSecret.knownHostsKey | default "known_hosts" }}
               mkdir -p /tmp/.ssh
-              cp /etc/git-ssh/{{ .Values.nodejs.app.git.sshSecret.privateKeyKey }} /tmp/.ssh/id
+              cp /etc/git-ssh/{{ $pkKey }} /tmp/.ssh/id
               chmod 600 /tmp/.ssh/id
-              if [ -f /etc/git-ssh/{{ .Values.nodejs.app.git.sshSecret.knownHostsKey }} ]; then
-                cp /etc/git-ssh/{{ .Values.nodejs.app.git.sshSecret.knownHostsKey }} /tmp/.ssh/known_hosts
+              if [ -f /etc/git-ssh/{{ $khKey }} ]; then
+                cp /etc/git-ssh/{{ $khKey }} /tmp/.ssh/known_hosts
               else
                 touch /tmp/.ssh/known_hosts
               fi

@@ -119,20 +119,18 @@ php:
           cpu: 500m
           memory: 256Mi
 
-    # Optional build step AFTER git-clone (composer install etc.).
-    # Runs in the runtime image by default; can be overridden via build.image
-    # to use a different image (e.g. composer:latest).
+    # Build step AFTER git-clone. Defaults to "composer install" in the
+    # official composer image, which is what 99% of PHP apps need.
+    # Only relevant when app.source=git. To skip it, set build.enabled=false.
     build:
-      enabled: false
-      # If empty: the runtime image (php.image) is used.
+      enabled: true
+      # If image.repository is empty, the runtime image (php.image) is used.
       image:
-        repository: ""
-        tag: ""
+        repository: composer
+        tag: "2-php8.3"
         pullPolicy: IfNotPresent
       # Executed via sh -c "..."; CWD = /var/www/html.
-      command: ""
-        # Example:
-        # command: "composer install --no-dev --optimize-autoloader --no-interaction"
+      command: "composer install --no-dev --optimize-autoloader --no-interaction"
       env: []
       resources:
         requests:

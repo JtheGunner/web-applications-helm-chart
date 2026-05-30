@@ -154,9 +154,11 @@ useful for internal/personal apps.
    Nginx, and — if present — the build container.
 2. Init container **`git-clone`** (image: `alpine/git`) clones the repo
    into `/app-files`. For private repos: an SSH key from a Kubernetes Secret.
-3. Optional init container **`app-build`** runs in the runtime image
-   (or a configurable build image, e.g. `composer:2-php8.3`) and executes
-   `composer install`, `npm ci`, and so on.
+3. Init container **`app-build`** runs the build step.
+   For **PHP**, this is enabled by default and runs
+   `composer install --no-dev --optimize-autoloader --no-interaction` in the
+   `composer:2-php8.3` image. For **Node.js**, it is opt-in
+   (`nodejs.app.build.enabled: true` + a `command`).
 4. Runtime containers (PHP-FPM, Nginx, Node) start with the files ready.
 
 **Trade-offs:**

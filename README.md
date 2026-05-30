@@ -5,7 +5,7 @@ A universal Helm chart for deploying PHP and/or Node.js web applications on Kube
 ## 🎯 Features
 
 - **One chart for everything** – run PHP, Node.js, or both at the same time, switched by values
-- **App from image *or* Git** – `app.source: image` (default) or `app.source: git` with an optional build step (composer install, npm ci)
+- **App from image *or* Git** – `app.source: image` (default) or `app.source: git`; for PHP the build step (`composer install`) runs automatically, Node.js opt-in
 - **Database support** – PostgreSQL and MariaDB as optional sub-charts (Bitnami), with `existingSecret` supported
 - **PHP-FPM + Nginx + init container** – production-grade PHP deployment with a correctly shared app volume
 - **Separate deployments** – PHP and Node.js scale independently

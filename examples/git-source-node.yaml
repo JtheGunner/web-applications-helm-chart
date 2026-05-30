@@ -42,6 +42,8 @@ nodejs:
       # url: git@github.com:example-org/example-node-api.git
       # sshSecret:
       #   name: example-api-ssh
+      #   # privateKeyKey: ssh-privatekey   # default — only set if you renamed it
+      #   # knownHostsKey: known_hosts      # default — only set if you renamed it
 
     build:
       enabled: true
