@@ -182,7 +182,7 @@ helm install my-app charts/webapp \
 ```bash
 kubectl get all -n production -l app.kubernetes.io/instance=my-app
 kubectl get ingress -n production
-curl https://app.example.com/health.php
+curl https://app.example.com/
 ```
 
 ## FluxCD integration
@@ -260,8 +260,8 @@ kubectl describe pod <pod-name> -n <namespace>
 
 ```bash
 kubectl port-forward <pod-name> 8080:80
-curl http://localhost:8080/health.php   # PHP
-curl http://localhost:3000/health       # Node.js
+curl http://localhost:8080/   # PHP
+curl http://localhost:3000/       # Node.js
 ```
 
 ### Database connectivity

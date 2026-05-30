@@ -190,7 +190,7 @@ php:
   # HTTP probes run against the Nginx sidecar (port 80).
   livenessProbe:
     enabled: true
-    path: /health.php
+    path: /
     initialDelaySeconds: 30
     periodSeconds: 10
     timeoutSeconds: 5
@@ -198,7 +198,7 @@ php:
 
   readinessProbe:
     enabled: true
-    path: /health.php
+    path: /
     initialDelaySeconds: 10
     periodSeconds: 5
     timeoutSeconds: 3
@@ -207,7 +207,7 @@ php:
   # Startup probe for slow-booting frameworks (Laravel boot, Composer autoload).
   startupProbe:
     enabled: false
-    path: /health.php
+    path: /
     initialDelaySeconds: 5
     periodSeconds: 5
     timeoutSeconds: 3

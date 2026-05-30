@@ -2,7 +2,7 @@ apiVersion: v2
 name: webapp
 description: A universal Helm chart for web applications with PHP and/or Node.js support, including an optional database
 type: application
-version: 1.3.6
+version: 1.3.7
 appVersion: "1.3"
 maintainers:
   - name: JtheGunner

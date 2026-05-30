@@ -22,13 +22,6 @@ data:
         access_log /dev/stdout;
         error_log /dev/stderr warn;
 
-        # PHP-FPM health check endpoint
-        location = /health.php {
-            fastcgi_pass 127.0.0.1:9000;
-            fastcgi_param SCRIPT_FILENAME /var/www/html/public/health.php;
-            include fastcgi_params;
-        }
-
         # Main application routing
         location / {
             try_files $uri $uri/ /index.php?$query_string;
