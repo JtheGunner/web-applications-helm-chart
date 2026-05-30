@@ -17,7 +17,7 @@ php:
 
   # Runtime image: PHP-FPM for request handling.
   # The official image does NOT include composer — but the chart's build step
-  # uses the composer:2-php8.3 image by default, so this works out of the box.
+  # uses the composer:2 image by default, so this works out of the box.
   image:
     repository: php
     tag: "8.3-fpm-alpine"
@@ -48,7 +48,7 @@ php:
       #   # knownHostsKey: known_hosts      # default — only set if you renamed it
 
     # Build step defaults (already enabled for PHP):
-    #   image:   composer:2-php8.3
+    #   image:   composer:2
     #   command: composer install --no-dev --optimize-autoloader --no-interaction
     # Override here if your app needs something different, or set
     # build.enabled: false to skip it entirely.

@@ -127,7 +127,7 @@ php:
       # If image.repository is empty, the runtime image (php.image) is used.
       image:
         repository: composer
-        tag: "2-php8.3"
+        tag: "2"
         pullPolicy: IfNotPresent
       # Executed via sh -c "..."; CWD = /var/www/html.
       command: "composer install --no-dev --optimize-autoloader --no-interaction"

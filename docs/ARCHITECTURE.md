@@ -157,7 +157,7 @@ useful for internal/personal apps.
 3. Init container **`app-build`** runs the build step.
    For **PHP**, this is enabled by default and runs
    `composer install --no-dev --optimize-autoloader --no-interaction` in the
-   `composer:2-php8.3` image. For **Node.js**, it is opt-in
+   `composer:2` image. For **Node.js**, it is opt-in
    (`nodejs.app.build.enabled: true` + a `command`).
 4. Runtime containers (PHP-FPM, Nginx, Node) start with the files ready.
 
